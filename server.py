@@ -215,7 +215,7 @@ def initialize_models():
 app = FastAPI(title="Interactive Question Generation API")
 initialize_models()
 
-origins = ["http://localhost:3000", "http://localhost:3001", "https://q-gen-frontend.vercel.app"] # Adjust to your frontend URL
+origins = ["https://qgen-frontend-app.vercel.app/","http://localhost:3000", "http://localhost:3001", "https://q-gen-frontend.vercel.app"] # Adjust to your frontend URL
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
