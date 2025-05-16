@@ -93,7 +93,7 @@ GEMINI_TIMEOUT = 300
 MAX_GEMINI_RETRIES = 3
 GEMINI_RETRY_DELAY = 60
 QDRANT_COLLECTION_NAME = "markdown_docs_v3_semantic_qg"
-EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
+EMBEDDING_MODEL_NAME = "paraphrase-MiniLM-L3-v2"
 VECTOR_SIZE = 384
 GEMINI_MODEL_NAME = "gemini-2.0"
 GEMINI_API_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/{model_name}:{action}?key={api_key}"
