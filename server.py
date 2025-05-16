@@ -95,7 +95,7 @@ GEMINI_RETRY_DELAY = 60
 QDRANT_COLLECTION_NAME = "markdown_docs_v3_semantic_qg"
 EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
 VECTOR_SIZE = 384
-GEMINI_MODEL_NAME = "gemini-1.5-flash-latest"
+GEMINI_MODEL_NAME = "gemini-2.0"
 GEMINI_API_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/{model_name}:{action}?key={api_key}"
 QSTS_THRESHOLD = 0.5 # Default threshold for Question-to-Source-Text Similarity
 QUALITATIVE_METRICS = ["Understandable", "TopicRelated", "Grammatical", "Clear", "Central"]
