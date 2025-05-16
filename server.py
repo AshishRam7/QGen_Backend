@@ -185,7 +185,7 @@ def initialize_models():
         logger.info("Moondream model initialized successfully.")
 
         logger.info(f"Initializing Qdrant client for URL: {QDRANT_URL}...")
-        qdrant_client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY, timeout=60)
+        qdrant_client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY, timeout=180)
         try:
             qdrant_client.get_collection(collection_name=QDRANT_COLLECTION_NAME)
             logger.info(f"Qdrant collection '{QDRANT_COLLECTION_NAME}' found.")
