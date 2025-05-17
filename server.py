@@ -16,6 +16,7 @@ import json
 # Text Processing & Embeddings
 from PIL import Image
 import nltk
+import torch # Added for converting list to tensor for sbert_util
 
 try:
     nltk.data.find('corpora/stopwords')
@@ -29,9 +30,9 @@ except LookupError:
     print("NLTK data downloaded.")
 
 from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize, sent_tokenize
-from sentence_transformers import SentenceTransformer
-from sentence_transformers import util as sbert_util
+from nltk.tokenize import word_tokenize # sent_tokenize removed as it's not used directly, clean_text uses word_tokenize
+# SentenceTransformer import removed as model is no longer local
+from sentence_transformers import util as sbert_util # sbert_util is still used for cosine similarity
 
 # Qdrant
 from qdrant_client import models, QdrantClient
@@ -58,19 +59,22 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 DATALAB_API_KEY = os.environ.get("DATALAB_API_KEY")
 DATALAB_MARKER_URL = os.environ.get("DATALAB_MARKER_URL")
 MOONDREAM_API_KEY = os.environ.get("MOONDREAM_API_KEY")
+EMBEDDING_SERVER_URL = os.environ.get("EMBEDDING_SERVER_URL") # New: URL for the embedding server
 
 # --- Initialize Logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [%(funcName)s][%(lineno)d] %(message)s')
 logging.getLogger('PIL').setLevel(logging.WARNING) # Reduce PIL logging noise
-logging.getLogger('sentence_transformers').setLevel(logging.WARNING)
+logging.getLogger('sentence_transformers').setLevel(logging.WARNING) # Still useful if sbert_util logs
 logging.getLogger('nltk').setLevel(logging.WARNING)
+logging.getLogger('requests').setLevel(logging.WARNING) # To reduce noise from requests library if needed
 logger = logging.getLogger(__name__)
 
 # --- Check Essential Variables ---
 essential_vars = {
     "QDRANT_URL": QDRANT_URL, "GEMINI_API_KEY": GEMINI_API_KEY,
     "DATALAB_API_KEY": DATALAB_API_KEY, "DATALAB_MARKER_URL": DATALAB_MARKER_URL,
-    "MOONDREAM_API_KEY": MOONDREAM_API_KEY
+    "MOONDREAM_API_KEY": MOONDREAM_API_KEY,
+    "EMBEDDING_SERVER_URL": EMBEDDING_SERVER_URL # New
 }
 missing_vars = [var_name for var_name, var_value in essential_vars.items() if not var_value]
 if missing_vars:
@@ -92,16 +96,17 @@ DATALAB_POLL_INTERVAL = 5
 GEMINI_TIMEOUT = 300
 MAX_GEMINI_RETRIES = 3
 GEMINI_RETRY_DELAY = 60
+EMBEDDING_REQUEST_TIMEOUT = 120 # New: Timeout for requests to embedding server
 QDRANT_COLLECTION_NAME = "markdown_docs_v3_semantic_qg"
-EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
-VECTOR_SIZE = 384
-GEMINI_MODEL_NAME = "gemini-2.0"
+EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2" # Name of the model, used for consistency/logging
+VECTOR_SIZE = 384 # Dimension of vectors, Qdrant needs this
+GEMINI_MODEL_NAME = "gemini-1.5-flash-latest" # Updated to 2.0 as in original
 GEMINI_API_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/{model_name}:{action}?key={api_key}"
-QSTS_THRESHOLD = 0.5 # Default threshold for Question-to-Source-Text Similarity
+QSTS_THRESHOLD = 0.5
 QUALITATIVE_METRICS = ["Understandable", "TopicRelated", "Grammatical", "Clear", "Central"]
 MAX_INTERACTIVE_REGENERATION_ATTEMPTS = 15
-MAX_HISTORY_TURNS = 10 # For LLM conversation history
-ANSWER_RETRIEVAL_LIMIT = 5 # For answerability check context
+MAX_HISTORY_TURNS = 10
+ANSWER_RETRIEVAL_LIMIT = 5
 MIN_CHUNK_SIZE_WORDS = 30
 MAX_CHUNK_SIZE_WORDS = 300
 
@@ -168,17 +173,19 @@ Respond now with the JSON object.
 ensure_server_dirs_and_prompts()
 
 # --- Global Model Initializations ---
-model_st: Optional[SentenceTransformer] = None
+# model_st: Optional[SentenceTransformer] = None # Removed: Embedding model is now external
 qdrant_client: Optional[QdrantClient] = None
 model_moondream: Optional[Any] = None
 stop_words_nltk: Optional[set] = None
 
 def initialize_models():
-    global model_st, qdrant_client, model_moondream, stop_words_nltk
+    global qdrant_client, model_moondream, stop_words_nltk # model_st removed
     try:
-        logger.info(f"Initializing Sentence Transformer model '{EMBEDDING_MODEL_NAME}'...")
-        model_st = SentenceTransformer(EMBEDDING_MODEL_NAME)
-        logger.info("Sentence Transformer model loaded.")
+        # logger.info(f"Initializing Sentence Transformer model '{EMBEDDING_MODEL_NAME}'...") # Removed
+        # model_st = SentenceTransformer(EMBEDDING_MODEL_NAME) # Removed
+        # logger.info("Sentence Transformer model loaded.") # Removed
+        logger.info(f"This server will use an external embedding service at: {EMBEDDING_SERVER_URL} for model '{EMBEDDING_MODEL_NAME}'.")
+
 
         logger.info(f"Initializing Moondream model...")
         model_moondream = md_moondream.vl(api_key=MOONDREAM_API_KEY)
@@ -215,7 +222,7 @@ def initialize_models():
 app = FastAPI(title="Interactive Question Generation API")
 initialize_models()
 
-origins = ["http://localhost:3000", "http://localhost:3001", "https://q-gen-frontend.vercel.app"] # Adjust to your frontend URL
+origins = ["http://localhost:3000", "http://localhost:3001", "https://q-gen-frontend.vercel.app"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -245,14 +252,14 @@ class JobStatusResponse(BaseModel):
     job_id: str
     status: str
     message: Optional[str] = None
-    error_details: Optional[str] = None # For backend errors during job processing
+    error_details: Optional[str] = None
     job_params: Optional[QuestionGenerationRequest] = None
     original_filename: Optional[str] = None
     current_question: Optional[str] = None
-    current_evaluations: Optional[Dict[str, Any]] = None # Stores eval metrics, including potential error messages from LLM calls
+    current_evaluations: Optional[Dict[str, Any]] = None
     regeneration_attempts_made: Optional[int] = None
     max_regeneration_attempts: Optional[int] = None
-    final_result: Optional[Dict[str, Any]] = None # Populated when job is 'completed'
+    final_result: Optional[Dict[str, Any]] = None
 
 class RegenerationRequest(BaseModel):
     user_feedback: str
@@ -261,6 +268,7 @@ class FinalizeRequest(BaseModel):
     final_question: str
 
 # --- Helper Functions ---
+
 def get_bloom_guidance(level: str, job_id_for_log: str) -> str:
     logger.info(f"[{job_id_for_log}] Getting Bloom's guidance for level: {level}")
     guidance = {
@@ -282,7 +290,6 @@ def fill_template_string(template_path: Path, placeholders: Dict[str, Any], job_
         template_content = template_path.read_text(encoding="utf-8")
         for key, value in placeholders.items():
             template_content = template_content.replace(f"{{{key}}}", str(value))
-        # Check for unfilled placeholders as a warning
         if "{" in template_content and "}" in template_content:
              unfilled_placeholders = re.findall(r"\{([\w_]+)\}", template_content)
              if unfilled_placeholders:
@@ -303,8 +310,8 @@ def get_gemini_response(
         return "Error: GEMINI_API_KEY not configured."
 
     api_url = GEMINI_API_URL_TEMPLATE.format(model_name=GEMINI_MODEL_NAME, action="generateContent", api_key=GEMINI_API_KEY)
-    processed_history = conversation_history[-(MAX_HISTORY_TURNS*2):] # Keep last N turns
-    contents = list(processed_history) # Make a copy
+    processed_history = conversation_history[-(MAX_HISTORY_TURNS*2):]
+    contents = list(processed_history)
     contents.append({"role": "user", "parts": [{"text": user_prompt}]})
 
     payload = {
@@ -317,10 +324,11 @@ def get_gemini_response(
             {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
         ]
     }
-    if system_prompt and "1.5" in GEMINI_MODEL_NAME:
+    if system_prompt and "1.5" in GEMINI_MODEL_NAME: # Handles new system prompt field for Gemini 1.5 models
         payload["systemInstruction"] = {"parts": [{"text": system_prompt}]}
-    elif system_prompt:
+    elif system_prompt: # For older models, prepend system prompt to user content if not already in history
         logger.warning(f"[{job_id_for_log}] System prompt provided for non-1.5 model; ensure it's handled in conversation history or user prompt.")
+
 
     for attempt in range(MAX_GEMINI_RETRIES):
         try:
@@ -341,10 +349,10 @@ def get_gemini_response(
                     if response_data.get("promptFeedback", {}).get("blockReason"):
                         block_reason = response_data["promptFeedback"]["blockReason"]
                         return f"Error: Gemini content blocked. Reason: {block_reason}. Details: {response_data['promptFeedback'].get('safetyRatings', [])}"
-                    return f"Error: Gemini generation stopped. Reason: {reason}." # e.g. SAFETY, RECITATION etc.
+                    return f"Error: Gemini generation stopped. Reason: {reason}."
 
             logger.error(f"[{job_id_for_log}] Gemini API response malformed: {response_data}")
-            return "Error: Malformed response from Gemini API." # Should be caught by caller
+            return "Error: Malformed response from Gemini API."
         except requests.exceptions.Timeout:
             logger.warning(f"[{job_id_for_log}] Gemini API call timed out (attempt {attempt+1}/{MAX_GEMINI_RETRIES}).")
         except requests.exceptions.RequestException as e:
@@ -357,31 +365,72 @@ def get_gemini_response(
             time.sleep(GEMINI_RETRY_DELAY)
         else:
             logger.error(f"[{job_id_for_log}] Gemini API call failed after {MAX_GEMINI_RETRIES} retries.")
-            return "Error: Gemini API call failed after multiple retries." # Caller must handle this
+            return "Error: Gemini API call failed after multiple retries."
     return "Error: Gemini API call failed (exhausted retries - code path should ideally not be reached)."
-
 
 def clean_text_for_embedding(text: str, job_id_for_log: str) -> str:
     global stop_words_nltk
     logger.debug(f"[{job_id_for_log}] Cleaning text for embedding (first 50 chars): {text[:50]}")
     text = text.lower()
-    text = re.sub(r"<[^>]+>", "", text) # Remove HTML tags
-    text = re.sub(r"[^\w\s\.\-\']", "", text) # Remove special characters except word chars, whitespace, '.', '-'
-    text = re.sub(r"\s+", " ", text).strip() # Normalize whitespace
+    text = re.sub(r"<[^>]+>", "", text)
+    text = re.sub(r"[^\w\s\.\-\']", "", text)
+    text = re.sub(r"\s+", " ", text).strip()
     if stop_words_nltk:
         try:
             tokens = word_tokenize(text)
         except LookupError as e:
-            logger.error(f"[{job_id_for_log}] NLTK LookupError during word_tokenize in clean_text_for_embedding: {e}. This may indicate missing 'punkt' or 'punkt_tab'. Ensure NLTK resources are downloaded.")
-            # Depending on severity, you might re-raise or return text without stopword removal
-            # For now, proceed without stopword removal if punkt is missing.
+            logger.error(f"[{job_id_for_log}] NLTK LookupError during word_tokenize in clean_text_for_embedding: {e}. Ensure NLTK 'punkt' is downloaded.")
             if 'punkt' in str(e).lower():
                 logger.warning(f"[{job_id_for_log}] NLTK 'punkt' resource missing. Skipping stopword removal.")
-                return text # Return text as is, if punkt is critical and missing.
-            raise # Re-raise other lookup errors
-        tokens = [word for word in tokens if word not in stop_words_nltk and len(word) > 1] # Remove stopwords and short tokens
+                return text
+            raise
+        tokens = [word for word in tokens if word not in stop_words_nltk and len(word) > 1]
         text = " ".join(tokens)
     return text
+
+# New helper function to get embeddings from the external server
+def get_embeddings_from_server(texts: List[str], job_id_for_log: str) -> List[List[float]]:
+    """
+    Sends texts to the external embedding server and returns their embeddings.
+    Raises ValueError or requests.exceptions.RequestException on failure.
+    """
+    if not EMBEDDING_SERVER_URL:
+        logger.error(f"[{job_id_for_log}] EMBEDDING_SERVER_URL is not configured.")
+        raise ValueError("Embedding server URL not configured.")
+    if not texts:
+        logger.warning(f"[{job_id_for_log}] No texts provided to get_embeddings_from_server.")
+        return []
+
+    logger.info(f"[{job_id_for_log}] Requesting embeddings for {len(texts)} texts from {EMBEDDING_SERVER_URL}.")
+    try:
+        response = requests.post(
+            f"{EMBEDDING_SERVER_URL.rstrip('/')}/embed",
+            json={"texts": texts},
+            timeout=EMBEDDING_REQUEST_TIMEOUT
+        )
+        response.raise_for_status()  # Raises HTTPError for bad responses (4XX or 5XX)
+        response_data = response.json()
+        
+        embeddings = response_data.get("embeddings")
+        if not embeddings or not isinstance(embeddings, list) or \
+           not all(isinstance(emb, list) for emb in embeddings):
+            logger.error(f"[{job_id_for_log}] Invalid or missing 'embeddings' in response from embedding server: {response_data}")
+            raise ValueError("Invalid embedding format from server.")
+        
+        if len(embeddings) != len(texts):
+            logger.error(f"[{job_id_for_log}] Mismatch in number of texts sent ({len(texts)}) and embeddings received ({len(embeddings)}).")
+            raise ValueError("Mismatch in text/embedding count from server.")
+
+        logger.info(f"[{job_id_for_log}] Successfully received {len(embeddings)} embeddings from server.")
+        return embeddings
+    except requests.exceptions.Timeout:
+        logger.error(f"[{job_id_for_log}] Timeout connecting to embedding server at {EMBEDDING_SERVER_URL}.")
+        raise TimeoutError(f"Embedding server request timed out for job {job_id_for_log}.")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"[{job_id_for_log}] Error connecting to embedding server at {EMBEDDING_SERVER_URL}: {e}", exc_info=True)
+        if e.response is not None:
+            logger.error(f"[{job_id_for_log}] Embedding server response content: {e.response.text}")
+        raise # Re-raise the original error to be handled by the caller
 
 def hierarchical_chunk_markdown(markdown_text: str, source_filename: str, job_id_for_log: str,
                                 min_words: int = MIN_CHUNK_SIZE_WORDS, max_words: int = MAX_CHUNK_SIZE_WORDS) -> List[Dict]:
@@ -462,10 +511,10 @@ def hierarchical_chunk_markdown(markdown_text: str, source_filename: str, job_id
                     "metadata": {**chunk['metadata'], "sub_chunk_id": sub_chunk_id_counter_local, "estimated_word_count": len(temp_sub_chunk_text.strip().split())}
                 })
         elif chunk['metadata']['estimated_word_count'] >= min_words:
-            final_chunks.append(chunk) # No sub_chunk_id needed if not split further
+            final_chunks.append(chunk)
 
     for i, chk in enumerate(final_chunks):
-        chk['metadata']['final_chunk_index'] = i # Universal final index
+        chk['metadata']['final_chunk_index'] = i
 
     logger.info(f"[{job_id_for_log}] Chunking for {source_filename} resulted in {len(final_chunks)} final chunks.")
     if not final_chunks and markdown_text.strip():
@@ -474,16 +523,28 @@ def hierarchical_chunk_markdown(markdown_text: str, source_filename: str, job_id
     return final_chunks
 
 def embed_chunks(chunks_data: List[Dict], job_id_for_log: str) -> List[List[float]]:
-    global model_st
-    logger.info(f"[{job_id_for_log}] Embedding {len(chunks_data)} chunks.")
-    if not model_st:
-        logger.error(f"[{job_id_for_log}] SentenceTransformer model not initialized.")
-        raise ValueError("SentenceTransformer model not available for embedding.")
+    # global model_st # Removed
+    logger.info(f"[{job_id_for_log}] Embedding {len(chunks_data)} chunks via external server.")
+    # if not model_st: # Removed
+    #     logger.error(f"[{job_id_for_log}] SentenceTransformer model not initialized.") # Removed
+    #     raise ValueError("SentenceTransformer model not available for embedding.") # Removed
+    
     texts_to_embed = [chunk['text'] for chunk in chunks_data]
-    if not texts_to_embed: return []
-    embeddings = model_st.encode(texts_to_embed, show_progress_bar=False) # Set show_progress_bar=False for server logs
-    logger.info(f"[{job_id_for_log}] Finished embedding {len(chunks_data)} chunks.")
-    return embeddings.tolist()
+    if not texts_to_embed: 
+        logger.warning(f"[{job_id_for_log}] No texts to embed in embed_chunks.")
+        return []
+    
+    # Clean texts before sending to embedding server
+    cleaned_texts_to_embed = [clean_text_for_embedding(text, job_id_for_log) for text in texts_to_embed]
+
+    try:
+        embeddings = get_embeddings_from_server(cleaned_texts_to_embed, job_id_for_log)
+    except (ValueError, requests.exceptions.RequestException, TimeoutError) as e:
+        logger.error(f"[{job_id_for_log}] Failed to get embeddings from server: {e}", exc_info=True)
+        raise # Re-raise to be handled by the caller (e.g., process_document_and_generate_first_question)
+    
+    logger.info(f"[{job_id_for_log}] Finished embedding {len(chunks_data)} chunks via external server.")
+    return embeddings # Already a list of lists
 
 def upsert_to_qdrant(job_id_for_log: str, collection_name: str, embeddings: List[List[float]],
                      chunks_data: List[Dict], batch_size: int = 100) -> int:
@@ -501,7 +562,7 @@ def upsert_to_qdrant(job_id_for_log: str, collection_name: str, embeddings: List
         point_id = str(uuid.uuid4())
         payload = {"text": chunk['text'], "metadata": chunk['metadata']}
         for k, v in payload["metadata"].items():
-            if isinstance(v, Path): payload["metadata"][k] = str(v) # Qdrant needs serializable types
+            if isinstance(v, Path): payload["metadata"][k] = str(v)
 
         points_to_upsert.append(PointStruct(id=point_id, vector=embeddings[i], payload=payload))
 
@@ -533,7 +594,7 @@ def find_topics_and_generate_hypothetical_text(job_id_for_log: str, academic_lev
         response_text = get_gemini_response(job_id_for_log, hypothetical_system_prompt, hypothetical_user_prompt, [])
         if response_text.startswith("Error:"):
             logger.error(f"[{job_id_for_log}] Failed to generate hypothetical text from Gemini: {response_text}")
-            return f"Could not generate hypothetical text. Error: {response_text}" # Return error string
+            return f"Could not generate hypothetical text. Error: {response_text}"
         logger.info(f"[{job_id_for_log}] Successfully generated hypothetical text (first 100 chars): {response_text[:100]}")
         return response_text
     except FileNotFoundError:
@@ -578,11 +639,11 @@ def parse_questions_from_llm_response(job_id_for_log: str, question_block: str, 
     for line in lines:
         for prefix in question_prefixes:
             if line.startswith(prefix): line = line[len(prefix):].strip(); break
-        line = re.sub(r"^\s*\d+\.\s*", "", line) # Remove "1. ", " 2. " etc.
-        line = re.sub(r"^\s*[a-zA-Z]\)\s*", "", line) # Remove "a) ", "b) " etc.
+        line = re.sub(r"^\s*\d+\.\s*", "", line)
+        line = re.sub(r"^\s*[a-zA-Z]\)\s*", "", line)
         if line: cleaned_questions.append(line)
 
-    if not cleaned_questions and lines and num_expected == 1: # Fallback for single question if no prefixes matched
+    if not cleaned_questions and lines and num_expected == 1:
         logger.warning(f"[{job_id_for_log}] No question prefixes matched. Using first cleaned line as question. Lines: {lines}")
         first_line_cleaned = re.sub(r"^\s*\d+\.\s*", "", lines[0]).strip()
         first_line_cleaned = re.sub(r"^\s*[a-zA-Z]\)\s*", "", first_line_cleaned).strip()
@@ -591,22 +652,42 @@ def parse_questions_from_llm_response(job_id_for_log: str, question_block: str, 
     final_questions = cleaned_questions[:num_expected] if cleaned_questions else []
     if not final_questions and question_block.strip():
         logger.warning(f"[{job_id_for_log}] Could not parse distinct questions. Raw block: {question_block}")
-        if num_expected == 1: final_questions = [question_block.strip()] # Last resort for single Q
+        if num_expected == 1: final_questions = [question_block.strip()]
     logger.info(f"[{job_id_for_log}] Parsed {len(final_questions)} questions. First: {final_questions[0][:100] if final_questions else 'None'}")
     return final_questions
 
 def evaluate_question_qsts(job_id_for_log: str, question: str, context: str) -> float:
-    global model_st
+    # global model_st # Removed
     logger.info(f"[{job_id_for_log}] Evaluating QSTS for question: {question[:100]}")
-    if not model_st: logger.error(f"[{job_id_for_log}] SentenceTransformer model not initialized for QSTS."); return 0.0
+    # if not model_st: logger.error(f"[{job_id_for_log}] SentenceTransformer model not initialized for QSTS."); return 0.0 # Removed
     if not question or not context: logger.warning(f"[{job_id_for_log}] Empty question or context for QSTS."); return 0.0
+    
     try:
-        q_embed = model_st.encode(clean_text_for_embedding(question, job_id_for_log))
-        c_embed = model_st.encode(clean_text_for_embedding(context, job_id_for_log))
-        score = sbert_util.pytorch_cos_sim(q_embed, c_embed).item()
+        cleaned_question = clean_text_for_embedding(question, job_id_for_log)
+        cleaned_context = clean_text_for_embedding(context, job_id_for_log)
+        
+        embeddings_list = get_embeddings_from_server([cleaned_question, cleaned_context], job_id_for_log)
+        
+        if len(embeddings_list) != 2:
+            logger.error(f"[{job_id_for_log}] QSTS: Expected 2 embeddings, got {len(embeddings_list)}.")
+            return 0.0
+
+        q_embed_list = embeddings_list[0]
+        c_embed_list = embeddings_list[1]
+
+        # Convert lists to PyTorch tensors for sbert_util.pytorch_cos_sim
+        q_embed_tensor = torch.tensor(q_embed_list, dtype=torch.float32).unsqueeze(0) # Add batch dim
+        c_embed_tensor = torch.tensor(c_embed_list, dtype=torch.float32).unsqueeze(0) # Add batch dim
+        
+        score = sbert_util.pytorch_cos_sim(q_embed_tensor, c_embed_tensor).item()
         logger.info(f"[{job_id_for_log}] QSTS score: {score:.4f}")
         return score
-    except Exception as e: logger.error(f"[{job_id_for_log}] Error during QSTS: {e}", exc_info=True); return 0.0
+    except (ValueError, requests.exceptions.RequestException, TimeoutError) as e:
+        logger.error(f"[{job_id_for_log}] QSTS: Failed to get embeddings from server: {e}", exc_info=True)
+        return 0.0
+    except Exception as e: 
+        logger.error(f"[{job_id_for_log}] Error during QSTS calculation: {e}", exc_info=True)
+        return 0.0
 
 def evaluate_question_qualitative_llm(job_id_for_log: str, question: str, context_for_eval: str,
                                    academic_level: str, major: str, course_name: str, taxonomy_level: str, marks_for_question: str) -> Dict[str, Any]:
@@ -617,7 +698,7 @@ def evaluate_question_qualitative_llm(job_id_for_log: str, question: str, contex
         "marks_for_question": marks_for_question,
         "bloom_guidance": get_bloom_guidance(taxonomy_level, job_id_for_log)
     }
-    default_error_return = {**{metric: False for metric in QUALITATIVE_METRICS}} # Base for error returns
+    default_error_return = {**{metric: False for metric in QUALITATIVE_METRICS}}
     try:
         eval_user_prompt = fill_template_string(QUALITATIVE_EVAL_PROMPT_PATH, placeholders, job_id_for_log)
         eval_system_prompt = "You are an expert AI assistant evaluating the quality of a generated question."
@@ -648,15 +729,23 @@ def evaluate_question_answerability_llm(job_id_for_log: str, question: str, acad
                                      course_name: str, taxonomy_level: str, marks_for_question: str,
                                      document_ids_filter: List[str], session_id_filter: str
                                      ) -> Tuple[bool, str, List[Dict]]:
-    global model_st
+    # global model_st # Removed
     logger.info(f"[{job_id_for_log}] Performing enhanced answerability LLM evaluation for: {question[:100]}")
-    if not model_st: return False, "Error: Embedding model not available.", []
+    # if not model_st: return False, "Error: Embedding model (local) not available.", [] # Removed
     ans_context_metadata = []
     try:
-        question_embedding = model_st.encode(clean_text_for_embedding(question, job_id_for_log))
+        cleaned_question_for_embedding = clean_text_for_embedding(question, job_id_for_log)
+        embedding_response = get_embeddings_from_server([cleaned_question_for_embedding], job_id_for_log)
+        
+        if not embedding_response or len(embedding_response) != 1:
+            logger.error(f"[{job_id_for_log}] Answerability: Failed to get valid embedding for the question.")
+            return False, "Error: Could not embed question for answerability check.", []
+
+        question_embedding_vector = embedding_response[0]
+        
         answer_search_results = search_qdrant(
             job_id_for_log=job_id_for_log, collection_name=QDRANT_COLLECTION_NAME,
-            embedded_vector=question_embedding.tolist(), query_text_for_log=f"Answerability search: {question[:50]}",
+            embedded_vector=question_embedding_vector, query_text_for_log=f"Answerability search: {question[:50]}",
             limit=ANSWER_RETRIEVAL_LIMIT, document_ids_filter=document_ids_filter, session_id_filter=session_id_filter
         )
         if not answer_search_results: return False, "No relevant context found in document to answer this question.", []
@@ -689,6 +778,9 @@ def evaluate_question_answerability_llm(job_id_for_log: str, question: str, acad
                 return False, "LLM response for answerability not in expected JSON format.", ans_context_metadata
         except json.JSONDecodeError:
             return False, "Failed to parse LLM's JSON response for answerability.", ans_context_metadata
+    except (ValueError, requests.exceptions.RequestException, TimeoutError) as e_embed:
+        logger.error(f"[{job_id_for_log}] Answerability: Failed to get embeddings for question: {e_embed}", exc_info=True)
+        return False, f"Error getting question embedding for answerability: {str(e_embed)}", []
     except Exception as e:
         return False, f"Unexpected error in answerability_eval: {str(e)}", ans_context_metadata
 
@@ -714,11 +806,14 @@ def call_datalab_marker(file_path: Path, job_id_for_log: str) -> Dict[str, Any]:
         response.raise_for_status()
         data = response.json()
     except requests.exceptions.RequestException as e:
-        raise Exception(f"Datalab API request failed: {e} - {e.response.text if e.response else 'No response'}") from e
+        error_text = e.response.text if e.response else "No response text"
+        logger.error(f"Datalab API request failed for {file_path.name}: {e} - Response: {error_text}", exc_info=True)
+        raise Exception(f"Datalab API request failed: {e} - {error_text}") from e
+
 
     if not data.get("success"): raise Exception(f"Datalab API error: {data.get('error', 'Unknown error')}")
     check_url = data["request_check_url"]
-    for _ in range(DATALAB_MAX_POLLS): # Use _ if i is not needed
+    for _ in range(DATALAB_MAX_POLLS):
         time.sleep(DATALAB_POLL_INTERVAL)
         try:
             poll_resp = requests.get(check_url, headers=headers, timeout=DATALAB_POLL_TIMEOUT)
@@ -735,7 +830,7 @@ def generate_moondream_image_description(image_path: Path, caption_text: str = "
     try:
         image = Image.open(image_path)
         if image.mode != "RGB": image = image.convert("RGB")
-        prompt = (f"Describe key technical findings in this figure/visualization {('captioned: ' + caption_text) if caption_text else ''}..." ) # Keep prompt as before
+        prompt = (f"Describe key technical findings in this figure/visualization {('captioned: ' + caption_text) if caption_text else ''}..." )
         encoded_image = model_moondream.encode_image(image)
         response_dict = model_moondream.query(encoded_image, prompt)
         desc = response_dict.get("answer", "Error: No answer key.") if isinstance(response_dict, dict) else str(response_dict)
@@ -769,17 +864,14 @@ def process_markdown_api(markdown_text: str, saved_images_map: Dict[str, str], j
             img_count += 1; alt, path_enc = match.group("alt"), match.group("path")
             path_dec = urllib.parse.unquote(path_enc)
             caption, cap_idx = alt, -1
-            # Simple caption lookahead
-            for k_ahead in range(2): # Look 2 lines ahead
+            for k_ahead in range(2):
                 next_idx = i + 1 + k_ahead
                 if next_idx < len(lines):
                     next_line = lines[next_idx].strip()
                     if not next_line: 
-                        if k_ahead == 0:
-                            k_ahead -=1 
-                            continue # Skip first empty line, effectively looking one more line down
+                        if k_ahead == 0: k_ahead -=1; continue
                     if cap_pattern.match(next_line): caption, cap_idx = next_line, next_idx; break
-                    break # Non-empty, non-caption line: stop lookahead
+                    break
                 else: break
             
             disk_path_str = saved_images_map.get(path_dec) or saved_images_map.get(path_enc)
@@ -792,7 +884,7 @@ def process_markdown_api(markdown_text: str, saved_images_map: Dict[str, str], j
             title = caption if caption and len(caption) > 5 else f"Figure {img_count}"
             block = f"\n---\n### {title}\n\n**Original Ref:** `{path_dec}` (Alt: `{alt}`)\n\n**Moondream Desc:**\n{desc}\n---\n"
             processed_lines.append(block)
-            if cap_idx != -1: i = cap_idx # Skip processed caption line
+            if cap_idx != -1: i = cap_idx
         else: processed_lines.append(line)
         i += 1
     logger.info(f"[{job_id_for_log}] Processed markdown with {img_count} image references.")
@@ -803,13 +895,14 @@ def process_document_and_generate_first_question(
     job_id: str, pdf_path_on_disk: Path, original_filename: str,
     params: QuestionGenerationRequest, job_specific_temp_dir: Path
 ):
-    global model_st, job_status_storage
+    # global model_st # Removed
+    global job_status_storage
     job_status_storage[job_id]["status"] = "processing_setup"
     job_status_storage[job_id]["message"] = "Preparing document..."
     
     current_job_data_dir = JOB_DATA_DIR / job_id
     current_job_data_dir.mkdir(parents=True, exist_ok=True)
-    job_images_dir = job_specific_temp_dir / "images"
+    job_images_dir = job_specific_temp_dir / "images" # This dir is under TEMP_UPLOAD_DIR/job_id
     final_md_path = current_job_data_dir / f"{job_id}_{Path(original_filename).stem}_processed.md"
 
     try:
@@ -831,18 +924,20 @@ def process_document_and_generate_first_question(
             "processed_markdown_path_relative": str(final_md_path.relative_to(PERSISTENT_DATA_BASE_DIR)),
             "processed_markdown_filename_on_server": final_md_path.name
         })
-        if job_images_dir.exists(): shutil.rmtree(job_images_dir)
+        if job_images_dir.exists(): shutil.rmtree(job_images_dir) # Clean up temp images from job_specific_temp_dir
 
         job_status_storage[job_id]["message"] = "Chunking, embedding, upserting (Qdrant)..."
         doc_id_qdrant = f"doc_{job_id}_{Path(original_filename).stem.replace('.', '_')}"
         job_status_storage[job_id]["document_id_for_qdrant"] = doc_id_qdrant
         chunks = hierarchical_chunk_markdown(processed_md, original_filename, job_id)
-        if not chunks: raise ValueError("No chunks generated.")
+        if not chunks: raise ValueError("No chunks generated from document.")
         for chunk_data in chunks:
             chunk_data.setdefault('metadata', {})['document_id'] = doc_id_qdrant
             chunk_data['metadata']['session_id'] = job_id
-        embeddings = embed_chunks(chunks, job_id)
-        if not embeddings: raise ValueError("Embedding failed.")
+        
+        # Embedding is now via external server, called by embed_chunks
+        embeddings = embed_chunks(chunks, job_id) # This now calls get_embeddings_from_server
+        if not embeddings: raise ValueError("Embedding failed or returned no embeddings.")
         if upsert_to_qdrant(job_id, QDRANT_COLLECTION_NAME, embeddings, chunks) == 0:
             raise ValueError("No points upserted to Qdrant.")
 
@@ -852,9 +947,15 @@ def process_document_and_generate_first_question(
             job_id, params.academic_level, params.major, params.course_name,
             params.taxonomy_level, params.topics_list, params.marks_for_question
         )
-        if hypo_text.startswith("Error:") or not hypo_text.strip(): raise ValueError(f"Hypothetical text gen failed: {hypo_text}")
-        if not model_st: raise ValueError("Embedding model unavailable for hypothetical text.")
-        query_embed = model_st.encode(clean_text_for_embedding(hypo_text, job_id)).tolist()
+        if hypo_text.startswith("Error:") or not hypo_text.strip(): 
+            raise ValueError(f"Hypothetical text generation failed: {hypo_text}")
+        
+        cleaned_hypo_text = clean_text_for_embedding(hypo_text, job_id)
+        hypo_embedding_response = get_embeddings_from_server([cleaned_hypo_text], job_id)
+        if not hypo_embedding_response or len(hypo_embedding_response) != 1:
+            raise ValueError("Failed to get valid embedding for hypothetical text.")
+        query_embed = hypo_embedding_response[0]
+
 
         job_status_storage[job_id]["message"] = "Retrieving generation context (Qdrant)..."
         gen_results = search_qdrant(
@@ -885,12 +986,21 @@ def process_document_and_generate_first_question(
             "max_regeneration_attempts": MAX_INTERACTIVE_REGENERATION_ATTEMPTS,
         })
 
-    except Exception as e:
+    except (ValueError, FileNotFoundError, requests.exceptions.RequestException, TimeoutError) as e: # Added specific error types
         logger.error(f"[{job_id}] Critical error during initial processing/first question: {e}", exc_info=True)
         job_status_storage[job_id].update({
             "status": "error", "message": f"Job setup failed: {str(e)}", "error_details": str(e)
         })
+        # job_specific_temp_dir is under TEMP_UPLOAD_DIR/job_id, it will be cleaned up if finalize is not called or error occurs at higher level.
+        # If pdf_path_on_disk (which is inside job_specific_temp_dir) caused the issue, this dir should be cleaned.
         if job_specific_temp_dir.exists(): shutil.rmtree(job_specific_temp_dir, ignore_errors=True)
+    except Exception as e: # Catch-all for other unexpected errors
+        logger.error(f"[{job_id}] Unexpected critical error during initial processing/first question: {e}", exc_info=True)
+        job_status_storage[job_id].update({
+            "status": "error", "message": f"Unexpected job setup error: {str(e)}", "error_details": str(e)
+        })
+        if job_specific_temp_dir.exists(): shutil.rmtree(job_specific_temp_dir, ignore_errors=True)
+
 
 def generate_and_evaluate_question_once(
     job_id: str, params: QuestionGenerationRequest, gen_ctx_text: str,
@@ -904,14 +1014,14 @@ def generate_and_evaluate_question_once(
         "taxonomy_level": params.taxonomy_level, "taxonomy": params.taxonomy_level,
         "marks_for_question": params.marks_for_question, "topics_list": params.topics_list,
         "bloom_guidance": get_bloom_guidance(params.taxonomy_level, job_id),
-        "blooms_taxonomy_descriptions": get_bloom_guidance(params.taxonomy_level, job_id),
+        "blooms_taxonomy_descriptions": get_bloom_guidance(params.taxonomy_level, job_id), # Duplicate key, consider aliasing if needed
         "retrieved_context": gen_ctx_text, "feedback_on_previous_attempt": user_feedback, "num_questions": "1"
     }
     prompt_path = job_specific_temp_dir / f"qgen_prompt_job_{job_id}_attempt_{attempt_num}.txt"
     user_prompt_qgen = fill_template_string(FINAL_USER_PROMPT_PATH, placeholders, job_id)
     prompt_path.write_text(user_prompt_qgen, encoding='utf-8')
 
-    sys_prompt_qgen = "You are an expert AI specializing in educational content..." # As before
+    sys_prompt_qgen = "You are an expert AI specializing in educational content, skilled in crafting diverse and challenging questions based on provided material and adhering to specific pedagogical guidelines like Bloom's Taxonomy."
     llm_resp_block = get_gemini_response(job_id, sys_prompt_qgen, user_prompt_qgen, convo_hist)
     
     updated_hist = list(convo_hist)
@@ -930,16 +1040,18 @@ def generate_and_evaluate_question_once(
                 updated_hist, [])
     
     curr_q_text = parsed_q_list[0]
+    # Note: gen_ctx_text here is the context used for *generation*. QSTS should ideally use this.
     qsts = evaluate_question_qsts(job_id, curr_q_text, gen_ctx_text)
     qual_evals = evaluate_question_qualitative_llm(
         job_id, curr_q_text, gen_ctx_text, params.academic_level, params.major,
         params.course_name, params.taxonomy_level, params.marks_for_question
     )
+    # Answerability uses its own retrieved context.
     is_ans, ans_reason, ans_ctx_meta = evaluate_question_answerability_llm(
         job_id, curr_q_text, params.academic_level, params.major, params.course_name,
         params.taxonomy_level, params.marks_for_question, doc_ids_filter, session_id_filter
     )
-    if prompt_path.exists(): prompt_path.unlink(missing_ok=True)
+    if prompt_path.exists(): prompt_path.unlink(missing_ok=True) # Clean up prompt file
 
     eval_metrics = {
         "qsts_score": qsts, "qualitative_metrics": qual_evals,
@@ -961,46 +1073,69 @@ async def start_question_generation_endpoint(
     course_name: str = Form("Data Structures and Algorithms"), taxonomy_level: str = Form("Evaluate"),
     marks_for_question: str = Form("10"), topics_list: str = Form("Breadth First Search, Shortest path"),
     retrieval_limit_generation: int = Form(15), similarity_threshold_generation: float = Form(0.4),
-    generate_diagrams: bool = Form(False)
+    generate_diagrams: bool = Form(False) # This param seems unused in current logic
 ):
     job_id = str(uuid.uuid4())
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Invalid file. Only PDF allowed.")
 
-    job_temp_dir = TEMP_UPLOAD_DIR / job_id
+    job_temp_dir = TEMP_UPLOAD_DIR / job_id # This is job_specific_temp_dir
     job_temp_dir.mkdir(parents=True, exist_ok=True)
-    safe_fname = "".join(c for c in Path(file.filename).name if c.isalnum() or c in ('-', '_', '.')) or "upload.pdf"
-    temp_pdf = job_temp_dir / f"input_{safe_fname}"
+    
+    # Sanitize filename
+    original_file_name_path = Path(file.filename)
+    safe_stem = "".join(c for c in original_file_name_path.stem if c.isalnum() or c in ('-', '_')) or "upload"
+    safe_suffix = original_file_name_path.suffix if original_file_name_path.suffix.lower() == ".pdf" else ".pdf"
+    safe_fname = f"{safe_stem}{safe_suffix}"
+    temp_pdf_path = job_temp_dir / f"input_{safe_fname}"
+
 
     try:
         content = await file.read()
-        if not content: raise HTTPException(status_code=400, detail="Uploaded file is empty.")
-        with temp_pdf.open("wb") as buf: buf.write(content)
-        logger.info(f"[{job_id}] File '{file.filename}' ({len(content)}B) saved to '{temp_pdf}'")
+        if not content: 
+            shutil.rmtree(job_temp_dir, ignore_errors=True)
+            raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+        with temp_pdf_path.open("wb") as buf: buf.write(content)
+        logger.info(f"[{job_id}] File '{file.filename}' ({len(content)}B) saved to '{temp_pdf_path}'")
     except Exception as e:
         if job_temp_dir.exists(): shutil.rmtree(job_temp_dir, ignore_errors=True)
-        raise HTTPException(status_code=500, detail=f"Could not save file: {e}") from e
+        logger.error(f"[{job_id}] Could not save uploaded file '{file.filename}': {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Could not save file: {str(e)}") from e
     finally: await file.close()
 
-    req_params = QuestionGenerationRequest(**locals()) # Collect params from Form fields
+    # Collect form parameters into the Pydantic model
+    # Using `locals()` can be error-prone if other local vars exist. Explicitly pass:
+    req_params_dict = {
+        "academic_level": academic_level, "major": major, "course_name": course_name,
+        "taxonomy_level": taxonomy_level, "marks_for_question": marks_for_question,
+        "topics_list": topics_list, "retrieval_limit_generation": retrieval_limit_generation,
+        "similarity_threshold_generation": similarity_threshold_generation,
+        "generate_diagrams": generate_diagrams
+    }
+    try:
+        req_params = QuestionGenerationRequest(**req_params_dict)
+    except Exception as pydantic_error: # Catch Pydantic validation errors
+        if job_temp_dir.exists(): shutil.rmtree(job_temp_dir, ignore_errors=True)
+        logger.error(f"[{job_id}] Invalid parameters for question generation: {pydantic_error}", exc_info=True)
+        raise HTTPException(status_code=422, detail=f"Invalid parameters: {pydantic_error}")
+
     job_status_storage[job_id] = {
         "status": "queued", "message": "Job queued for initial processing.",
-        "job_params": req_params.model_dump(), "original_filename": file.filename,
+        "job_params": req_params.model_dump(), "original_filename": file.filename, # Use original filename for display
         "regeneration_attempts_made": 0, "max_regeneration_attempts": MAX_INTERACTIVE_REGENERATION_ATTEMPTS,
     }
     background_tasks.add_task(process_document_and_generate_first_question,
-                              job_id, temp_pdf, file.filename, req_params, job_temp_dir)
+                              job_id, temp_pdf_path, file.filename, req_params, job_temp_dir)
     return JobCreationResponse(job_id=job_id, message="Job successfully queued.")
 
 def _get_job_status_response_dict(job_id: str, job_data: Dict) -> Dict:
-    """Helper to construct the dictionary for JobStatusResponse, ensuring job_params is typed."""
     response_dict = {k: job_data.get(k) for k in JobStatusResponse.model_fields.keys() if k != 'job_id'}
     job_params_data = job_data.get("job_params")
     if isinstance(job_params_data, dict):
         try:
             response_dict['job_params'] = QuestionGenerationRequest(**job_params_data)
         except Exception: response_dict['job_params'] = None
-    elif not isinstance(job_params_data, QuestionGenerationRequest):
+    elif not isinstance(job_params_data, QuestionGenerationRequest): # Ensure it's already not a model instance
         response_dict['job_params'] = None
     return response_dict
 
@@ -1009,41 +1144,63 @@ async def regenerate_question_endpoint(job_id: str, regen_request: RegenerationR
     if job_id not in job_status_storage: raise HTTPException(status_code=404, detail="Job not found.")
     job_data = job_status_storage[job_id]
     
-    status, attempts, max_attempts = job_data.get("status"), job_data.get("regeneration_attempts_made",0), job_data.get("max_regeneration_attempts", MAX_INTERACTIVE_REGENERATION_ATTEMPTS)
-    if status not in ["awaiting_feedback", "max_attempts_reached"]:
+    status = job_data.get("status")
+    attempts = job_data.get("regeneration_attempts_made", 0)
+    max_attempts = job_data.get("max_regeneration_attempts", MAX_INTERACTIVE_REGENERATION_ATTEMPTS)
+
+    if status not in ["awaiting_feedback", "max_attempts_reached"]: # Allow regen even if max_attempts_reached if client insists, but it won't change outcome
         raise HTTPException(status_code=400, detail=f"Cannot regenerate from status: {status}")
+    
     if attempts >= max_attempts:
-        job_data["status"], job_data["message"] = "max_attempts_reached", "Max regeneration attempts reached."
+        job_data["status"] = "max_attempts_reached" # Ensure status reflects this
+        job_data["message"] = "Max regeneration attempts already reached. Further regeneration will not change outcome unless limits are adjusted."
         return JobStatusResponse(job_id=job_id, **_get_job_status_response_dict(job_id, job_data))
 
     job_data["status"], job_data["message"] = "regenerating_question", "Regenerating question..."
-    job_temp_dir = TEMP_UPLOAD_DIR / job_id; job_temp_dir.mkdir(parents=True, exist_ok=True)
+    job_temp_dir = TEMP_UPLOAD_DIR / job_id; job_temp_dir.mkdir(parents=True, exist_ok=True) # Ensure it exists
 
     try:
-        params = QuestionGenerationRequest(**job_data["job_params"])
-        q_text, q_evals, convo_hist, ans_meta = generate_and_evaluate_question_once(
-            job_id, params, job_data["generation_context_text_for_llm"],
-            job_data["conversation_history_for_qgen"], regen_request.user_feedback,
-            [job_data["document_id_for_qdrant"]], job_id, job_temp_dir, attempts + 1
+        params = QuestionGenerationRequest(**job_data["job_params"]) # job_params should be a dict here
+        
+        # Required data for generate_and_evaluate_question_once
+        gen_ctx_text = job_data.get("generation_context_text_for_llm")
+        convo_hist = job_data.get("conversation_history_for_qgen", [])
+        doc_id_qdrant = job_data.get("document_id_for_qdrant")
+
+        if not all([gen_ctx_text, doc_id_qdrant is not None]): # convo_hist can be empty initially
+            missing_data_msg = "Missing essential data for regeneration (context, doc_id)."
+            logger.error(f"[{job_id}] {missing_data_msg}")
+            job_data.update({"status": "error", "message": missing_data_msg, "error_details": missing_data_msg})
+            raise HTTPException(status_code=500, detail=missing_data_msg)
+
+        q_text, q_evals, updated_convo_hist, ans_meta = generate_and_evaluate_question_once(
+            job_id, params, gen_ctx_text,
+            convo_hist, regen_request.user_feedback,
+            [doc_id_qdrant], job_id, job_temp_dir, attempts + 1
         )
         job_data.update({
             "current_question": q_text, "current_evaluations": q_evals,
-            "conversation_history_for_qgen": convo_hist,
-            "answerability_context_snippets_metadata": ans_meta,
+            "conversation_history_for_qgen": updated_convo_hist,
+            "answerability_context_snippets_metadata": ans_meta, # Update this as well
             "regeneration_attempts_made": attempts + 1, "error_details": None
         })
         if job_data["regeneration_attempts_made"] >= max_attempts:
-            job_data["status"], job_data["message"] = "max_attempts_reached", "Max attempts reached."
+            job_data["status"], job_data["message"] = "max_attempts_reached", "Max regeneration attempts reached."
         else:
-            job_data["status"], job_data["message"] = "awaiting_feedback", "Question regenerated."
+            job_data["status"], job_data["message"] = "awaiting_feedback", "Question regenerated successfully. Please review."
     except Exception as e:
-        logger.error(f"[{job_id}] Error during regeneration: {e}", exc_info=True)
-        job_data.update({
-            "status": "awaiting_feedback", "message": f"Regeneration error: {str(e)}",
+        logger.error(f"[{job_id}] Error during regeneration process: {e}", exc_info=True)
+        job_data.update({ # Revert to awaiting_feedback so user can see the error and potentially try again or finalize
+            "status": "awaiting_feedback", 
+            "message": f"Error during regeneration: {str(e)}",
             "error_details": str(e)
         })
-        if isinstance(job_data.get("current_evaluations"), dict): job_data["current_evaluations"]["error_message_regeneration"] = str(e)
-        else: job_data["current_evaluations"] = {"error_message_regeneration": str(e)}
+        # Add error details to current_evaluations if possible
+        if isinstance(job_data.get("current_evaluations"), dict):
+            job_data["current_evaluations"]["error_message_regeneration"] = str(e)
+        else:
+            job_data["current_evaluations"] = {"error_message_regeneration": str(e)}
+        # Do not raise HTTPException here, return the JobStatusResponse with error info
         
     return JobStatusResponse(job_id=job_id, **_get_job_status_response_dict(job_id, job_data))
 
@@ -1051,36 +1208,67 @@ async def regenerate_question_endpoint(job_id: str, regen_request: RegenerationR
 async def finalize_question_endpoint(job_id: str, finalize_request: FinalizeRequest):
     if job_id not in job_status_storage: raise HTTPException(status_code=404, detail="Job not found.")
     job_data = job_status_storage[job_id]
-    if job_data.get("status") not in ["awaiting_feedback", "max_attempts_reached"]:
-        raise HTTPException(status_code=400, detail=f"Cannot finalize from status: {job_data.get('status')}")
+    
+    current_status = job_data.get("status")
+    if current_status not in ["awaiting_feedback", "max_attempts_reached"]:
+        raise HTTPException(status_code=400, detail=f"Cannot finalize from status: {current_status}")
     
     current_q = job_data.get("current_question")
     if not current_q or current_q.startswith("Error:"):
-         raise HTTPException(status_code=400, detail="Cannot finalize with an errored/missing question.")
+         raise HTTPException(status_code=400, detail="Cannot finalize with an errored or missing question. Current question is invalid.")
+    
+    # The client sends the question it thinks is final. We use the server's current question for record.
+    # Log if there's a mismatch, but proceed with server's version.
     if finalize_request.final_question != current_q:
-        logger.warning(f"[{job_id}] Finalizing question mismatch. Using server's current question.")
+        logger.warning(f"[{job_id}] Finalizing question mismatch. Client sent: '{finalize_request.final_question[:50]}...', Server has: '{current_q[:50]}...'. Using server's current question.")
 
-    job_data["status"], job_data["message"] = "finalizing", "Finalizing job..."
+    job_data["status"], job_data["message"] = "finalizing", "Finalizing job and saving results..."
+    
+    # Prepare the final payload from job_data
+    # Ensure job_params is correctly retrieved (it's a dict in job_status_storage)
+    job_params_dict = job_data.get("job_params", {})
+    try:
+        # Attempt to cast to Pydantic model for structure, though it's mainly for consistent output
+        job_params_model = QuestionGenerationRequest(**job_params_dict) if job_params_dict else None
+    except Exception:
+        job_params_model = None # Fallback if casting fails, use raw dict
+
     final_payload = {
-        "job_id": job_id, "original_filename": job_data.get("original_filename"),
-        "parameters": job_data.get("job_params"), "generated_question": current_q,
+        "job_id": job_id, 
+        "original_filename": job_data.get("original_filename"),
+        "parameters": job_params_model.model_dump() if job_params_model else job_params_dict, # Store as dict
+        "generated_question": current_q,
         "evaluation_metrics": job_data.get("current_evaluations"),
-        "generation_context_snippets_metadata": job_data.get("generation_context_snippets_metadata"),
-        "answerability_context_snippets_metadata": job_data.get("answerability_context_snippets_metadata"),
+        "generation_context_snippets_metadata": job_data.get("generation_context_snippets_metadata"), # Context used for original generation
+        "answerability_context_snippets_metadata": job_data.get("answerability_context_snippets_metadata"), # Context used for last answerability check
         "processed_markdown_path_relative": job_data.get("processed_markdown_path_relative"),
         "processed_markdown_filename_on_server": job_data.get("processed_markdown_filename_on_server"),
         "total_regeneration_attempts_made": job_data.get("regeneration_attempts_made"),
+        "finalized_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     }
-    result_path = JOB_DATA_DIR / job_id / f"{job_id}_final_interactive_result.json"
-    result_path.parent.mkdir(parents=True, exist_ok=True)
-    try: result_path.write_text(json.dumps(final_payload, indent=2, cls=PathEncoder), encoding="utf-8")
-    except Exception as e: logger.error(f"[{job_id}] Failed to save final result JSON: {e}", exc_info=True)
+    
+    result_file_path = JOB_DATA_DIR / job_id / f"{job_id}_final_interactive_result.json"
+    result_file_path.parent.mkdir(parents=True, exist_ok=True) # Ensure parent directory exists
+    
+    try: 
+        result_file_path.write_text(json.dumps(final_payload, indent=2, cls=PathEncoder), encoding="utf-8")
+        logger.info(f"[{job_id}] Final result saved to {result_file_path}")
+    except Exception as e: 
+        logger.error(f"[{job_id}] Failed to save final result JSON to {result_file_path}: {e}", exc_info=True)
+        # Update job status to reflect save error but still proceed to cleanup
+        job_data.update({"status": "error_saving_final", "message": f"Job finalized, but error saving result: {str(e)}", "final_result": final_payload})
+        # Don't raise HTTPException here, client should still get a response. The job is "complete" in spirit.
 
-    job_data.update({"final_result": final_payload, "status": "completed", "message": "Job finalized by user."})
+    job_data.update({"final_result": final_payload, "status": "completed", "message": "Job finalized successfully by user."})
+    
+    # Cleanup temporary upload directory for this job
     job_temp_dir = TEMP_UPLOAD_DIR / job_id
-    if job_temp_dir.exists(): shutil.rmtree(job_temp_dir, ignore_errors=True)
+    if job_temp_dir.exists(): 
+        shutil.rmtree(job_temp_dir, ignore_errors=True)
+        logger.info(f"[{job_id}] Cleaned up temporary directory: {job_temp_dir}")
     
     return JobStatusResponse(job_id=job_id, **_get_job_status_response_dict(job_id, job_data))
+
 
 @app.get("/job-status/{job_id}", response_model=JobStatusResponse)
 async def get_job_status_endpoint(job_id: str):
@@ -1090,7 +1278,24 @@ async def get_job_status_endpoint(job_id: str):
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok"}
+    # Optionally, check connectivity to embedding server
+    embedding_server_status = "unknown"
+    if EMBEDDING_SERVER_URL:
+        try:
+            response = requests.get(f"{EMBEDDING_SERVER_URL.rstrip('/')}/health", timeout=5)
+            if response.status_code == 200:
+                embedding_server_status = "ok"
+            else:
+                embedding_server_status = f"error_status_{response.status_code}"
+        except requests.exceptions.RequestException:
+            embedding_server_status = "unreachable"
+    
+    return {
+        "status": "ok", 
+        "message": "Interactive QG API is running.",
+        "embedding_server_status": embedding_server_status,
+        "qdrant_url_configured": bool(QDRANT_URL) # Basic check
+    }
 
 if __name__ == "__main__":
     import uvicorn
