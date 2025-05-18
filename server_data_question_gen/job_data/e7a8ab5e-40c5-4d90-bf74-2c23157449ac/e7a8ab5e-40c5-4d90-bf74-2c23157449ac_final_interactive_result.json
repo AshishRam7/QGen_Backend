@@ -1,0 +1,378 @@
+{
+  "job_id": "e7a8ab5e-40c5-4d90-bf74-2c23157449ac",
+  "original_filename": "DP__notes.pdf",
+  "parameters": {
+    "academic_level": "Undergraduate",
+    "major": "Computer Science",
+    "course_name": "Data Structures and Algorithms",
+    "taxonomy_level": "Create",
+    "marks_for_question": "10",
+    "topics_list": "Breadth First Search, Shortest path",
+    "retrieval_limit_generation": 15,
+    "similarity_threshold_generation": 0.4,
+    "generate_diagrams": false
+  },
+  "generated_question": "Design a new algorithm that leverages Breadth-First Search (BFS) to find the shortest path between any two nodes in a weighted graph, but with the added constraint that the algorithm must prioritize paths with the fewest number of edges, even if a slightly longer path (in terms of total weight) has fewer edges.  Clearly outline the steps of your algorithm, including data structures used, and justify the algorithmic complexity of your solution.  Provide a pseudocode representation of your algorithm.  Assume that edge weights are non-negative.",
+  "evaluation_metrics": {
+    "qsts_score": 0.6793630719184875,
+    "qualitative_metrics": {
+      "Understandable": true,
+      "TopicRelated": true,
+      "Grammatical": true,
+      "Clear": true,
+      "Central": true
+    },
+    "llm_answerability": {
+      "is_answerable": false,
+      "reasoning": "The provided context snippets focus on shortest path algorithms (like Dijkstra's) and graph representations.  While they provide foundational knowledge relevant to a Computer Science undergraduate, they do not offer the necessary information to design a novel algorithm that prioritizes paths with fewer edges, even at the cost of slightly higher weight.  The question demands synthesis and creation at a high Bloom's Taxonomy level ('Create'), requiring the student to combine knowledge of BFS, weighted graphs, and path prioritization in a way not supported by the given context. The snippets mainly describe existing algorithms and graph structures, not the steps to create a new one with the specified constraints."
+    },
+    "generation_status_message": "Question evaluation for attempt 1 complete."
+  },
+  "generation_context_snippets_metadata": [
+    {
+      "text": "#### **Single-Destination Shortest Path Problem-**\n\n- It is a shortest path problem where the shortest path from all the vertices to a single destination vertex is computed.\n- By reversing the direction of each edge in the graph, this problem reduces to singlesource shortest path problem.\n- Dijkstra's Algorithm is a famous algorithm adapted for solving single-destination shortest path problem.",
+      "metadata": {
+        "source_file": "DP__notes.pdf",
+        "header_trail": [
+          "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+          "**Various types of shortest path problem are-**",
+          "Figure 4",
+          "**Single-Destination Shortest Path Problem-**"
+        ],
+        "chunk_index_original_split": 28,
+        "estimated_char_length": 396,
+        "estimated_word_count": 60,
+        "final_chunk_index": 31,
+        "document_id": "doc_e7a8ab5e-40c5-4d90-bf74-2c23157449ac_DP__notes",
+        "session_id": "e7a8ab5e-40c5-4d90-bf74-2c23157449ac"
+      }
+    },
+    {
+      "text": "#### **Dijkstra's Algorithm**\n\n- Dijkstra Algorithm is a very famous greedy algorithm.\n- It is used for solving the single source shortest path problem.\n- It computes the shortest path from one particular source node to all other remaining nodes of the graph.\n- \u2022",
+      "metadata": {
+        "source_file": "DP__notes.pdf",
+        "header_trail": [
+          "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+          "**Various types of shortest path problem are-**",
+          "Figure 4",
+          "**Dijkstra's Algorithm**"
+        ],
+        "chunk_index_original_split": 30,
+        "estimated_char_length": 263,
+        "estimated_word_count": 45,
+        "final_chunk_index": 33,
+        "document_id": "doc_e7a8ab5e-40c5-4d90-bf74-2c23157449ac_DP__notes",
+        "session_id": "e7a8ab5e-40c5-4d90-bf74-2c23157449ac"
+      }
+    },
+    {
+      "text": "### Figure 11\n\n**Original Ref:** `1__page_18_Figure_8.jpeg` (Alt: ``)\n\n**Moondream Desc:**\nThe image presents a Shortest Path Tree (SPT) diagram, which is a type of graph used to find the shortest path between two nodes in a network. The SPT tree is constructed by starting with the source node and the destination node, and then adding edges to the tree in a specific order. The edges are labeled with the source and destination nodes, as well as the weight of the edge, which represents the cost of traversing that path.  In this particular SPT tree, the nodes are labeled with the letters 'a', 'b', 'c', 'd', and 'e'. The edges are labeled with the corresponding weights, indicating the cost of traversing each path. The tree is constructed in a way that the edges are added in a specific order, starting from the source node and ending at the destination node.  The SPT tree is a useful tool for finding the shortest path between two nodes in a network, as it allows for efficient computation of the shortest path between any two nodes in the network.\n---",
+      "metadata": {
+        "source_file": "DP__notes.pdf",
+        "header_trail": [
+          "**Next In-Directed path from \" S\" to \"e\"**",
+          "Figure 10",
+          "Figure 11"
+        ],
+        "chunk_index_original_split": 41,
+        "estimated_char_length": 1059,
+        "estimated_word_count": 185,
+        "final_chunk_index": 44,
+        "document_id": "doc_e7a8ab5e-40c5-4d90-bf74-2c23157449ac_DP__notes",
+        "session_id": "e7a8ab5e-40c5-4d90-bf74-2c23157449ac"
+      }
+    },
+    {
+      "text": "#### **Single-Source Shortest Path Problem-**\n\n- It is a shortest path problem where the shortest path from a given source vertex to all other remaining vertices is computed.\n- Dijkstra's Algorithm and Bellman Ford Algorithm are the famous algorithms used for solving single-source shortest path problem.",
+      "metadata": {
+        "source_file": "DP__notes.pdf",
+        "header_trail": [
+          "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+          "**Various types of shortest path problem are-**",
+          "Figure 4",
+          "**Single-Source Shortest Path Problem-**"
+        ],
+        "chunk_index_original_split": 27,
+        "estimated_char_length": 304,
+        "estimated_word_count": 46,
+        "final_chunk_index": 30,
+        "document_id": "doc_e7a8ab5e-40c5-4d90-bf74-2c23157449ac_DP__notes",
+        "session_id": "e7a8ab5e-40c5-4d90-bf74-2c23157449ac"
+      }
+    },
+    {
+      "text": "#### **All Pairs Shortest Path Problem-**\n\n- It is a shortest path problem where the shortest path between every pair of vertices is computed.\n- Floyd-Warshall Algorithm and Johnson's Algorithm are the famous algorithms used for solving All pairs shortest path problem.",
+      "metadata": {
+        "source_file": "DP__notes.pdf",
+        "header_trail": [
+          "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+          "**Various types of shortest path problem are-**",
+          "Figure 4",
+          "**All Pairs Shortest Path Problem-**"
+        ],
+        "chunk_index_original_split": 29,
+        "estimated_char_length": 269,
+        "estimated_word_count": 42,
+        "final_chunk_index": 32,
+        "document_id": "doc_e7a8ab5e-40c5-4d90-bf74-2c23157449ac_DP__notes",
+        "session_id": "e7a8ab5e-40c5-4d90-bf74-2c23157449ac"
+      }
+    },
+    {
+      "text": "#### **Single-Pair Shortest Path Problem-**\n\n- It is a shortest path problem where the shortest path between a given pair of vertices is computed.\n- A\\* Search Algorithm is a famous algorithm used for solving single-pair shortest path problem.",
+      "metadata": {
+        "source_file": "DP__notes.pdf",
+        "header_trail": [
+          "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+          "**Various types of shortest path problem are-**",
+          "Figure 4",
+          "**Single-Pair Shortest Path Problem-**"
+        ],
+        "chunk_index_original_split": 26,
+        "estimated_char_length": 243,
+        "estimated_word_count": 39,
+        "final_chunk_index": 29,
+        "document_id": "doc_e7a8ab5e-40c5-4d90-bf74-2c23157449ac_DP__notes",
+        "session_id": "e7a8ab5e-40c5-4d90-bf74-2c23157449ac"
+      }
+    },
+    {
+      "text": "#### **Shortest Path Problem-**\n\n- In data structures/ADA,\n- Shortest path problem is a problem of finding the shortest path(s) between vertices of a given graph.\n- Shortest path between two vertices is a path that has the least cost as compared to all other existing paths.",
+      "metadata": {
+        "source_file": "DP__notes.pdf",
+        "header_trail": [
+          "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+          "**Shortest Path Problem-**"
+        ],
+        "chunk_index_original_split": 23,
+        "estimated_char_length": 274,
+        "estimated_word_count": 47,
+        "final_chunk_index": 26,
+        "document_id": "doc_e7a8ab5e-40c5-4d90-bf74-2c23157449ac_DP__notes",
+        "session_id": "e7a8ab5e-40c5-4d90-bf74-2c23157449ac"
+      }
+    },
+    {
+      "text": "#### **Shortest Path Algorithms-**\n\n\u2022 Shortest path algorithms are a family of algorithms used for solving the shortest path problem.\n\n**Applications-**Shortest path algorithms have a wide range of applications such as in-\n\n- Google Maps\n- Road Networks\n- Logistics Research",
+      "metadata": {
+        "source_file": "DP__notes.pdf",
+        "header_trail": [
+          "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+          "**Shortest Path Problem-**",
+          "**Shortest Path Algorithms-**"
+        ],
+        "chunk_index_original_split": 24,
+        "estimated_char_length": 274,
+        "estimated_word_count": 41,
+        "final_chunk_index": 27,
+        "document_id": "doc_e7a8ab5e-40c5-4d90-bf74-2c23157449ac_DP__notes",
+        "session_id": "e7a8ab5e-40c5-4d90-bf74-2c23157449ac"
+      }
+    },
+    {
+      "text": "#### **Optimal Sub-Structure**\n\nA given problem has Optimal Substructure Property, if the optimal solution of the given problem can be obtained using optimal solutions of its sub-problems.\n\nFor example, the Shortest Path problem has the following optimal substructure property \u2212\n\nIf a node **x** lies in the shortest path from a source node **u** to destination node **v**, then the shortest path from **u** to **v** is the combination of the shortest path from **u** to **x**, and the shortest path from **x** to **v**.\n\nThe standard All Pair Shortest Path algorithms like Floyd-Warshall and Bellman-Ford are typical examples of Dynamic Programming",
+      "metadata": {
+        "source_file": "DP__notes.pdf",
+        "header_trail": [
+          "**Dynamic Programming**",
+          "**Overlapping Sub-Problems**",
+          "**Optimal Sub-Structure**"
+        ],
+        "chunk_index_original_split": 2,
+        "estimated_char_length": 649,
+        "estimated_word_count": 102,
+        "final_chunk_index": 2,
+        "document_id": "doc_e7a8ab5e-40c5-4d90-bf74-2c23157449ac_DP__notes",
+        "session_id": "e7a8ab5e-40c5-4d90-bf74-2c23157449ac"
+      }
+    },
+    {
+      "text": "## Solution\n\nTravelling salesman problem is the most notorious computational problem. We can use bruteforce approach to evaluate every possible tour and select the best one. For n number of vertices in a graph, there are (n - 1)! number of possibilities.\n\nInstead of brute-force using dynamic programming approach, the solution can be obtained in lesser time, though there is no polynomial time algorithm.\n\nLet us consider a graph G = (V, E), where V is a set of cities and E is a set of weighted edges. An edge e(u, v) represents that vertices u and v are connected. Distance between vertex u and v is d(u, v), which should be non-negative.\n\nSuppose we have started at city 1 and after visiting some cities now we are in city j. Hence, this is a partial tour. We certainly need to know j, since this will determine which cities are most convenient to visit next. We also need to know all the cities visited so far, so that we don't repeat any of them. Hence, this is an appropriate sub-problem.\n\nFor a subset of cities S \u0404 {1, 2, 3, ... , n} that includes 1, and j \u0404 S, let C(S, j) be the length of the shortest path visiting each node in S exactly once, starting at 1 and ending at j.\n\nWhen |S| > 1, we define C(S, 1) = \u221d since the path cannot start and end at 1.\n\nNow, let express C(S, j) in terms of smaller sub-problems. We need to start at 1 and end at j. We should select the next city in such a way that\n\nC(S,j) = min C(S\u2212{j},i)+d(i,j)\n\nwhere i\u2208 S and i\u2260j\n\nc(S,j) = min C(s\u2212{j},i)+d(i,j)\n\nwhere i\u2208 S and i\u2260j",
+      "metadata": {
+        "source_file": "DP__notes.pdf",
+        "header_trail": [
+          "**0/1 Knapsack Problem: Dynamic Programming Approach: Knapsack Problem:**",
+          "Solution"
+        ],
+        "chunk_index_original_split": 18,
+        "estimated_char_length": 1515,
+        "estimated_word_count": 292,
+        "final_chunk_index": 21,
+        "document_id": "doc_e7a8ab5e-40c5-4d90-bf74-2c23157449ac_DP__notes",
+        "session_id": "e7a8ab5e-40c5-4d90-bf74-2c23157449ac"
+      }
+    },
+    {
+      "text": "### Figure 4\n\n**Original Ref:** `0__page_13_Figure_15.jpeg` (Alt: ``)\n\n**Moondream Desc:**\nThe figure presents a hierarchical structure illustrating the different types of shortest path problems. It highlights the relationships between these problems, with each type represented by a distinct node and connected by arrows. The topmost node, \"Shortest Path Problem,\" is the most general category, encompassing all other types of shortest path problems. The subsequent nodes represent more specific subcategories, such as \"Single-pair Shortest Path Problem,\" \"Single-source Shortest Path Problem,\" \"Single-destination Shortest Path Problem,\" and \"All pairs Shortest Path Problem.\" This visual representation effectively conveys the complexity and diversity of shortest path problems, providing a clear understanding of their relationships and distinctions.\n---",
+      "metadata": {
+        "source_file": "DP__notes.pdf",
+        "header_trail": [
+          "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+          "**Various types of shortest path problem are-**",
+          "Figure 4"
+        ],
+        "chunk_index_original_split": 25,
+        "estimated_char_length": 858,
+        "estimated_word_count": 112,
+        "final_chunk_index": 28,
+        "document_id": "doc_e7a8ab5e-40c5-4d90-bf74-2c23157449ac_DP__notes",
+        "session_id": "e7a8ab5e-40c5-4d90-bf74-2c23157449ac"
+      }
+    },
+    {
+      "text": "### Figure 10\n\n**Original Ref:** `1__page_18_Figure_3.jpeg` (Alt: ``)\n\n**Moondream Desc:**\nThe image presents a diagram of a graph with nodes labeled 'a', 'b', 'c', 'd', and 'e'. The graph has a total of six edges, with some edges being red and others being black. The nodes are interconnected, forming a network structure. The key technical findings in this figure/visualization are the connectivity and relationships between the nodes, as well as the presence of red edges, which could represent a specific property or relationship within the graph.\n---\n\n\n\u2022 Now,\n\n- All vertices of the graph are processed.\n- Our final shortest path tree is as shown below.\n- It represents the shortest path from source vertex 'S' to all other remaining vertices.\n\n\n---",
+      "metadata": {
+        "source_file": "DP__notes.pdf",
+        "header_trail": [
+          "**Next In-Directed path from \" S\" to \"e\"**",
+          "Figure 10"
+        ],
+        "chunk_index_original_split": 40,
+        "estimated_char_length": 754,
+        "estimated_word_count": 123,
+        "final_chunk_index": 43,
+        "document_id": "doc_e7a8ab5e-40c5-4d90-bf74-2c23157449ac_DP__notes",
+        "session_id": "e7a8ab5e-40c5-4d90-bf74-2c23157449ac"
+      }
+    },
+    {
+      "text": "### Figure 5\n\n**Original Ref:** `0__page_15_Figure_9.jpeg` (Alt: ``)\n\n**Moondream Desc:**\nThe key technical finding in this figure is the representation of a directed graph with nodes labeled 'a', 'b', 'c', 'd', and 'e'. Each node is connected to other nodes by edges, forming a network structure. The graph appears to be a directed acyclic graph (DAG), which is a type of graph where no two nodes have an incoming edge. This type of graph is useful for modeling real-world relationships, processes, or networks. The nodes are labeled with numbers, which could represent identifiers, categories, or other data points. The connections between the nodes are represented by arrows, indicating the direction of the relationships.\n---\n\n\nIn this figure Source Vertex is \"S\" So Now calculate shortest path from\n\n\"S\" to \"a\",\n\n\"S\" to \"b\" ,\n\n\"S\" to \"c\" ,\n\n\"S\" to \"d\" ,\n\n\"S\" to \"e\" ,\n\nInitially We will calculate directed path from source vertex\n\nDirected path from \"S\" to \"a\" is 1,\n\nDirected path \"S\" to \"b\" is 5 ,\n\nDirected path \" S\" to \"c\" is infinite (\u221e) ,\nDirected path \"S\" to \"d\" is infinite (\u221e) ,\n\nDirected path \"S\" to \"e\" is infinite (\u221e) ,\n\nAfter directed path calculation from source vertex, we will try to find another path from source vertex\n\n**In-Directed path from \"S\" to \"a\" not available. So Final Path will remain same.** \n\n\n---",
+      "metadata": {
+        "source_file": "DP__notes.pdf",
+        "header_trail": [
+          "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+          "**Various types of shortest path problem are-**",
+          "Figure 5"
+        ],
+        "chunk_index_original_split": 31,
+        "estimated_char_length": 1333,
+        "estimated_word_count": 231,
+        "final_chunk_index": 34,
+        "document_id": "doc_e7a8ab5e-40c5-4d90-bf74-2c23157449ac_DP__notes",
+        "session_id": "e7a8ab5e-40c5-4d90-bf74-2c23157449ac"
+      }
+    },
+    {
+      "text": "# **Next In-Directed path from \" S\" to \"d\"**\n\n- In-Directed path \"S\" to \"d\" is \"s to a and a to d\" is 2. Another In \u2013Directed Path from \"S\" to \"d\" is \"s to b and b to d\" is 7. Another In \u2013Directed Path from \"S\" to \"d\" is \"s to a and a to b and b to d \" is 5. Another In \u2013Directed Path from \"S\" to \"d\" is \"s to a and a to c and c to d \" is 6\n- Total 4 In-Directed path from \"S\" to \"d\" is available in the graph, so we will select shortest path which is\n- \"s to a and a to d\" is 2\n\n\n---",
+      "metadata": {
+        "source_file": "DP__notes.pdf",
+        "header_trail": [
+          "**Next In-Directed path from \" S\" to \"d\"**"
+        ],
+        "chunk_index_original_split": 37,
+        "estimated_char_length": 484,
+        "estimated_word_count": 122,
+        "final_chunk_index": 40,
+        "document_id": "doc_e7a8ab5e-40c5-4d90-bf74-2c23157449ac_DP__notes",
+        "session_id": "e7a8ab5e-40c5-4d90-bf74-2c23157449ac"
+      }
+    },
+    {
+      "text": "# **Next In-Directed path from \" S\" to \"e\"**\n\n- In-Directed path \"S\" to \"e\" is \"s to a and a to d and d to e\" is 4. Another In \u2013Directed Path from \"S\" to \"e\" is \"s to b and b to d and d to e\" is 9. Another In \u2013Directed Path from \"S\" to \"e\" is \"s to a and a to b and b to d and d to e \" is 7. Another In \u2013Directed Path from \"S\" to \"e\" is \"s to a and a to c and c to d and d to e \" is 9. Another In \u2013 Directed Path from \"S\" to \"e\" is \"s to a and a to c and c to e\" is 4.\n- Total 4 In-Directed path from \"S\" to \"e\" is available in the graph, so we will select shortest path which is\n- In-Directed path \"S\" to \"e\" is \"s to a and a to d and d to e\" is 4. and Another In Directed Path from \"S\" to \"e\" is \"s to a and a to c and c to e\" is 4. two path selected as minimum. Now randomly select one . Hear I selected In-Directed path \"S\" to \"e\" is \"s to a and a to d and d to e\" is 4.\n\n\n---",
+      "metadata": {
+        "source_file": "DP__notes.pdf",
+        "header_trail": [
+          "**Next In-Directed path from \" S\" to \"e\"**"
+        ],
+        "chunk_index_original_split": 39,
+        "estimated_char_length": 880,
+        "estimated_word_count": 226,
+        "final_chunk_index": 42,
+        "document_id": "doc_e7a8ab5e-40c5-4d90-bf74-2c23157449ac_DP__notes",
+        "session_id": "e7a8ab5e-40c5-4d90-bf74-2c23157449ac"
+      }
+    }
+  ],
+  "answerability_context_snippets_metadata": [
+    {
+      "text": "### Figure 11\n\n**Original Ref:** `1__page_18_Figure_8.jpeg` (Alt: ``)\n\n**Moondream Desc:**\nThe image presents a Shortest Path Tree (SPT) diagram, which is a type of graph used to find the shortest path between two nodes in a network. The SPT tree is constructed by starting with the source node and the destination node, and then adding edges to the tree in a specific order. The edges are labeled with the source and destination nodes, as well as the weight of the edge, which represents the cost of traversing that path.  In this particular SPT tree, the nodes are labeled with the letters 'a', 'b', 'c', 'd', and 'e'. The edges are labeled with the corresponding weights, indicating the cost of traversing each path. The tree is constructed in a way that the edges are added in a specific order, starting from the source node and ending at the destination node.  The SPT tree is a useful tool for finding the shortest path between two nodes in a network, as it allows for efficient computation of the shortest path between any two nodes in the network.\n---",
+      "metadata": {
+        "source_file": "DP__notes.pdf",
+        "header_trail": [
+          "**Next In-Directed path from \" S\" to \"e\"**",
+          "Figure 10",
+          "Figure 11"
+        ],
+        "chunk_index_original_split": 41,
+        "estimated_char_length": 1059,
+        "estimated_word_count": 185,
+        "final_chunk_index": 44,
+        "document_id": "doc_e7a8ab5e-40c5-4d90-bf74-2c23157449ac_DP__notes",
+        "session_id": "e7a8ab5e-40c5-4d90-bf74-2c23157449ac"
+      }
+    },
+    {
+      "text": "#### **Dijkstra's Algorithm**\n\n- Dijkstra Algorithm is a very famous greedy algorithm.\n- It is used for solving the single source shortest path problem.\n- It computes the shortest path from one particular source node to all other remaining nodes of the graph.\n- \u2022",
+      "metadata": {
+        "source_file": "DP__notes.pdf",
+        "header_trail": [
+          "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+          "**Various types of shortest path problem are-**",
+          "Figure 4",
+          "**Dijkstra's Algorithm**"
+        ],
+        "chunk_index_original_split": 30,
+        "estimated_char_length": 263,
+        "estimated_word_count": 45,
+        "final_chunk_index": 33,
+        "document_id": "doc_e7a8ab5e-40c5-4d90-bf74-2c23157449ac_DP__notes",
+        "session_id": "e7a8ab5e-40c5-4d90-bf74-2c23157449ac"
+      }
+    },
+    {
+      "text": "#### **Shortest Path Problem-**\n\n- In data structures/ADA,\n- Shortest path problem is a problem of finding the shortest path(s) between vertices of a given graph.\n- Shortest path between two vertices is a path that has the least cost as compared to all other existing paths.",
+      "metadata": {
+        "source_file": "DP__notes.pdf",
+        "header_trail": [
+          "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+          "**Shortest Path Problem-**"
+        ],
+        "chunk_index_original_split": 23,
+        "estimated_char_length": 274,
+        "estimated_word_count": 47,
+        "final_chunk_index": 26,
+        "document_id": "doc_e7a8ab5e-40c5-4d90-bf74-2c23157449ac_DP__notes",
+        "session_id": "e7a8ab5e-40c5-4d90-bf74-2c23157449ac"
+      }
+    },
+    {
+      "text": "#### **Single-Destination Shortest Path Problem-**\n\n- It is a shortest path problem where the shortest path from all the vertices to a single destination vertex is computed.\n- By reversing the direction of each edge in the graph, this problem reduces to singlesource shortest path problem.\n- Dijkstra's Algorithm is a famous algorithm adapted for solving single-destination shortest path problem.",
+      "metadata": {
+        "source_file": "DP__notes.pdf",
+        "header_trail": [
+          "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+          "**Various types of shortest path problem are-**",
+          "Figure 4",
+          "**Single-Destination Shortest Path Problem-**"
+        ],
+        "chunk_index_original_split": 28,
+        "estimated_char_length": 396,
+        "estimated_word_count": 60,
+        "final_chunk_index": 31,
+        "document_id": "doc_e7a8ab5e-40c5-4d90-bf74-2c23157449ac_DP__notes",
+        "session_id": "e7a8ab5e-40c5-4d90-bf74-2c23157449ac"
+      }
+    },
+    {
+      "text": "### Figure 5\n\n**Original Ref:** `0__page_15_Figure_9.jpeg` (Alt: ``)\n\n**Moondream Desc:**\nThe key technical finding in this figure is the representation of a directed graph with nodes labeled 'a', 'b', 'c', 'd', and 'e'. Each node is connected to other nodes by edges, forming a network structure. The graph appears to be a directed acyclic graph (DAG), which is a type of graph where no two nodes have an incoming edge. This type of graph is useful for modeling real-world relationships, processes, or networks. The nodes are labeled with numbers, which could represent identifiers, categories, or other data points. The connections between the nodes are represented by arrows, indicating the direction of the relationships.\n---\n\n\nIn this figure Source Vertex is \"S\" So Now calculate shortest path from\n\n\"S\" to \"a\",\n\n\"S\" to \"b\" ,\n\n\"S\" to \"c\" ,\n\n\"S\" to \"d\" ,\n\n\"S\" to \"e\" ,\n\nInitially We will calculate directed path from source vertex\n\nDirected path from \"S\" to \"a\" is 1,\n\nDirected path \"S\" to \"b\" is 5 ,\n\nDirected path \" S\" to \"c\" is infinite (\u221e) ,\nDirected path \"S\" to \"d\" is infinite (\u221e) ,\n\nDirected path \"S\" to \"e\" is infinite (\u221e) ,\n\nAfter directed path calculation from source vertex, we will try to find another path from source vertex\n\n**In-Directed path from \"S\" to \"a\" not available. So Final Path will remain same.** \n\n\n---",
+      "metadata": {
+        "source_file": "DP__notes.pdf",
+        "header_trail": [
+          "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+          "**Various types of shortest path problem are-**",
+          "Figure 5"
+        ],
+        "chunk_index_original_split": 31,
+        "estimated_char_length": 1333,
+        "estimated_word_count": 231,
+        "final_chunk_index": 34,
+        "document_id": "doc_e7a8ab5e-40c5-4d90-bf74-2c23157449ac_DP__notes",
+        "session_id": "e7a8ab5e-40c5-4d90-bf74-2c23157449ac"
+      }
+    }
+  ],
+  "processed_markdown_path_relative": "job_data\\e7a8ab5e-40c5-4d90-bf74-2c23157449ac\\e7a8ab5e-40c5-4d90-bf74-2c23157449ac_DP__notes_processed.md",
+  "processed_markdown_filename_on_server": "e7a8ab5e-40c5-4d90-bf74-2c23157449ac_DP__notes_processed.md",
+  "total_regeneration_attempts_made": 1,
+  "finalized_at": "2025-05-17T17:03:55Z"
+}

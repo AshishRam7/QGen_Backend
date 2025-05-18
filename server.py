@@ -3,7 +3,7 @@ import os
 import time
 import re
 import base64
-import requests
+import requests # For Jina API and Gemini
 import uuid
 import logging
 from pathlib import Path
@@ -16,7 +16,7 @@ import json
 # Text Processing & Embeddings
 from PIL import Image
 import nltk
-import torch # Added for converting list to tensor for sbert_util
+import torch # For converting list to tensor for sbert_util
 
 try:
     nltk.data.find('corpora/stopwords')
@@ -30,8 +30,7 @@ except LookupError:
     print("NLTK data downloaded.")
 
 from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize # sent_tokenize removed as it's not used directly, clean_text uses word_tokenize
-# SentenceTransformer import removed as model is no longer local
+from nltk.tokenize import word_tokenize
 from sentence_transformers import util as sbert_util # sbert_util is still used for cosine similarity
 
 # Qdrant
@@ -59,14 +58,18 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 DATALAB_API_KEY = os.environ.get("DATALAB_API_KEY")
 DATALAB_MARKER_URL = os.environ.get("DATALAB_MARKER_URL")
 MOONDREAM_API_KEY = os.environ.get("MOONDREAM_API_KEY")
-EMBEDDING_SERVER_URL = os.environ.get("EMBEDDING_SERVER_URL") # New: URL for the embedding server
+
+# Jina API Configuration
+JINA_API_KEY = os.environ.get("JINA_API_KEY")
+JINA_API_EMBEDDING_URL = os.environ.get("JINA_API_EMBEDDING_URL", "https://api.jina.ai/v1/embeddings")
+JINA_API_EMBEDDING_MODEL_NAME = os.environ.get("JINA_API_EMBEDDING_MODEL_NAME", "jina-embeddings-v2-base-en") # Defaulting to a common one
 
 # --- Initialize Logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [%(funcName)s][%(lineno)d] %(message)s')
-logging.getLogger('PIL').setLevel(logging.WARNING) # Reduce PIL logging noise
-logging.getLogger('sentence_transformers').setLevel(logging.WARNING) # Still useful if sbert_util logs
+logging.getLogger('PIL').setLevel(logging.WARNING)
+logging.getLogger('sentence_transformers').setLevel(logging.WARNING)
 logging.getLogger('nltk').setLevel(logging.WARNING)
-logging.getLogger('requests').setLevel(logging.WARNING) # To reduce noise from requests library if needed
+logging.getLogger('requests').setLevel(logging.WARNING) # Jina API calls use requests
 logger = logging.getLogger(__name__)
 
 # --- Check Essential Variables ---
@@ -74,7 +77,7 @@ essential_vars = {
     "QDRANT_URL": QDRANT_URL, "GEMINI_API_KEY": GEMINI_API_KEY,
     "DATALAB_API_KEY": DATALAB_API_KEY, "DATALAB_MARKER_URL": DATALAB_MARKER_URL,
     "MOONDREAM_API_KEY": MOONDREAM_API_KEY,
-    "EMBEDDING_SERVER_URL": EMBEDDING_SERVER_URL # New
+    "JINA_API_KEY": JINA_API_KEY
 }
 missing_vars = [var_name for var_name, var_value in essential_vars.items() if not var_value]
 if missing_vars:
@@ -96,11 +99,11 @@ DATALAB_POLL_INTERVAL = 5
 GEMINI_TIMEOUT = 300
 MAX_GEMINI_RETRIES = 3
 GEMINI_RETRY_DELAY = 60
-EMBEDDING_REQUEST_TIMEOUT = 120 # New: Timeout for requests to embedding server
+JINA_API_TIMEOUT = 120 # Timeout for Jina API requests
 QDRANT_COLLECTION_NAME = "markdown_docs_v3_semantic_qg"
-EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2" # Name of the model, used for consistency/logging
-VECTOR_SIZE = 384 # Dimension of vectors, Qdrant needs this
-GEMINI_MODEL_NAME = "gemini-1.5-flash-latest" # Updated to 2.0 as in original
+EMBEDDING_MODEL_NAME = JINA_API_EMBEDDING_MODEL_NAME # Use the Jina API model name
+VECTOR_SIZE = 768  # Dimension for jina-embeddings-v2-base-en. ADJUST IF USING A DIFFERENT JINA MODEL!
+GEMINI_MODEL_NAME = "gemini-1.5-flash-latest"
 GEMINI_API_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/{model_name}:{action}?key={api_key}"
 QSTS_THRESHOLD = 0.5
 QUALITATIVE_METRICS = ["Understandable", "TopicRelated", "Grammatical", "Clear", "Central"]
@@ -173,18 +176,35 @@ Respond now with the JSON object.
 ensure_server_dirs_and_prompts()
 
 # --- Global Model Initializations ---
-# model_st: Optional[SentenceTransformer] = None # Removed: Embedding model is now external
 qdrant_client: Optional[QdrantClient] = None
 model_moondream: Optional[Any] = None
 stop_words_nltk: Optional[set] = None
+# No Jina client to initialize globally
 
 def initialize_models():
-    global qdrant_client, model_moondream, stop_words_nltk # model_st removed
+    global qdrant_client, model_moondream, stop_words_nltk
     try:
-        # logger.info(f"Initializing Sentence Transformer model '{EMBEDDING_MODEL_NAME}'...") # Removed
-        # model_st = SentenceTransformer(EMBEDDING_MODEL_NAME) # Removed
-        # logger.info("Sentence Transformer model loaded.") # Removed
-        logger.info(f"This server will use an external embedding service at: {EMBEDDING_SERVER_URL} for model '{EMBEDDING_MODEL_NAME}'.")
+        logger.info(f"Using Jina Embeddings API for model '{JINA_API_EMBEDDING_MODEL_NAME}' via URL '{JINA_API_EMBEDDING_URL}'.")
+        # Test Jina API connectivity (optional but good practice)
+        try:
+            test_payload = {"input": ["test"], "model": JINA_API_EMBEDDING_MODEL_NAME}
+            headers = {"Authorization": f"Bearer {JINA_API_KEY}", "Content-Type": "application/json"}
+            response = requests.post(JINA_API_EMBEDDING_URL, json=test_payload, headers=headers, timeout=10)
+            response.raise_for_status()
+            response_data = response.json()
+            if not response_data.get("data") or not response_data["data"][0].get("embedding"):
+                raise ValueError("Jina API test call returned unexpected data format.")
+            test_embedding_dim = len(response_data["data"][0]["embedding"])
+            if test_embedding_dim != VECTOR_SIZE:
+                logger.critical(f"FATAL: Jina API test returned embedding dimension {test_embedding_dim}, but VECTOR_SIZE is {VECTOR_SIZE}. Please align these values.")
+                sys.exit(f"Jina API embedding dimension mismatch. Expected {VECTOR_SIZE}, got {test_embedding_dim}.")
+            logger.info("Jina Embeddings API connectivity test successful.")
+        except requests.exceptions.RequestException as e:
+            logger.critical(f"FATAL: Failed to connect or authenticate with Jina Embeddings API: {e}", exc_info=True)
+            sys.exit("Jina API connectivity test failed.")
+        except ValueError as e:
+            logger.critical(f"FATAL: Jina API test call failed: {e}", exc_info=True)
+            sys.exit("Jina API test call failed.")
 
 
         logger.info(f"Initializing Moondream model...")
@@ -194,26 +214,50 @@ def initialize_models():
         logger.info(f"Initializing Qdrant client for URL: {QDRANT_URL}...")
         qdrant_client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY, timeout=180)
         try:
-            qdrant_client.get_collection(collection_name=QDRANT_COLLECTION_NAME)
+            collection_info = qdrant_client.get_collection(collection_name=QDRANT_COLLECTION_NAME)
             logger.info(f"Qdrant collection '{QDRANT_COLLECTION_NAME}' found.")
-        except Exception as e:
-            err_str = str(e).lower()
-            is_not_found = ("not found" in err_str or "status_code=404" in err_str or "collection not found" in err_str or " কারণেই" in err_str)
-            if is_not_found or (hasattr(e, 'status_code') and e.status_code == 404):
-                logger.warning(f"Qdrant collection '{QDRANT_COLLECTION_NAME}' not found. Creating...")
+            # Explicitly check vector size of existing collection
+            current_vector_size = None
+            if isinstance(collection_info.config.params.vectors, dict): # For named vectors
+                 # Assuming the default unnamed vector config or the first named one if multiple
+                default_vector_name = next(iter(collection_info.config.params.vectors))
+                current_vector_size = collection_info.config.params.vectors[default_vector_name].size
+            elif hasattr(collection_info.config.params.vectors, 'size'): # For single vector config
+                current_vector_size = collection_info.config.params.vectors.size
+
+            if current_vector_size is not None and current_vector_size != VECTOR_SIZE:
+                logger.warning(f"Qdrant collection '{QDRANT_COLLECTION_NAME}' exists but has vector size {current_vector_size} instead of configured {VECTOR_SIZE}. Recreating collection.")
                 qdrant_client.recreate_collection(
                     collection_name=QDRANT_COLLECTION_NAME,
                     vectors_config=VectorParams(size=VECTOR_SIZE, distance=Distance.COSINE)
                 )
-                logger.info(f"Qdrant collection '{QDRANT_COLLECTION_NAME}' created.")
+                logger.info(f"Qdrant collection '{QDRANT_COLLECTION_NAME}' recreated with new vector size {VECTOR_SIZE}.")
+        except Exception as e: # Catches errors if collection doesn't exist or other access issues
+            err_str = str(e).lower()
+            # More robust check for "not found" or "vector size mismatch" type errors
+            is_not_found_or_mismatch = any(keyword in err_str for keyword in ["not found", "status_code=404", "collection not found", "vector size mismatch", "vektör boyutu uyuşmazlığı"])
+
+            if is_not_found_or_mismatch or (hasattr(e, 'status_code') and e.status_code == 404):
+                if "vector size mismatch" in err_str : # Check if it's specifically a mismatch
+                    logger.warning(f"Qdrant collection '{QDRANT_COLLECTION_NAME}' vector size mismatch. Recreating...")
+                else:
+                    logger.warning(f"Qdrant collection '{QDRANT_COLLECTION_NAME}' not found. Creating...")
+                qdrant_client.recreate_collection(
+                    collection_name=QDRANT_COLLECTION_NAME,
+                    vectors_config=VectorParams(size=VECTOR_SIZE, distance=Distance.COSINE)
+                )
+                logger.info(f"Qdrant collection '{QDRANT_COLLECTION_NAME}' created/recreated with vector size {VECTOR_SIZE}.")
             else:
                 logger.error(f"Qdrant connection/access error for collection '{QDRANT_COLLECTION_NAME}': {e}", exc_info=True)
                 raise Exception(f"Qdrant connection/access error: {e}")
+
 
         logger.info("Loading NLTK stopwords...")
         stop_words_nltk = set(stopwords.words('english'))
         logger.info("NLTK stopwords loaded.")
 
+    except SystemExit: # Allow sys.exit to propagate
+        raise
     except Exception as e:
         logger.critical(f"Fatal error during global model initialization: {e}", exc_info=True)
         sys.exit("Model initialization failed.")
@@ -324,9 +368,9 @@ def get_gemini_response(
             {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
         ]
     }
-    if system_prompt and "1.5" in GEMINI_MODEL_NAME: # Handles new system prompt field for Gemini 1.5 models
+    if system_prompt and "1.5" in GEMINI_MODEL_NAME:
         payload["systemInstruction"] = {"parts": [{"text": system_prompt}]}
-    elif system_prompt: # For older models, prepend system prompt to user content if not already in history
+    elif system_prompt:
         logger.warning(f"[{job_id_for_log}] System prompt provided for non-1.5 model; ensure it's handled in conversation history or user prompt.")
 
 
@@ -388,49 +432,71 @@ def clean_text_for_embedding(text: str, job_id_for_log: str) -> str:
         text = " ".join(tokens)
     return text
 
-# New helper function to get embeddings from the external server
-def get_embeddings_from_server(texts: List[str], job_id_for_log: str) -> List[List[float]]:
+# Helper function to get embeddings using Jina API directly with requests
+def get_embeddings_with_jina_api(texts: List[str], job_id_for_log: str) -> List[List[float]]:
     """
-    Sends texts to the external embedding server and returns their embeddings.
-    Raises ValueError or requests.exceptions.RequestException on failure.
+    Generates embeddings for a list of texts using the Jina Embeddings API.
+    Raises RuntimeError or requests.exceptions.RequestException on failure.
     """
-    if not EMBEDDING_SERVER_URL:
-        logger.error(f"[{job_id_for_log}] EMBEDDING_SERVER_URL is not configured.")
-        raise ValueError("Embedding server URL not configured.")
+    if not JINA_API_KEY:
+        logger.error(f"[{job_id_for_log}] JINA_API_KEY is not configured.")
+        raise ValueError("Jina API Key not configured.")
     if not texts:
-        logger.warning(f"[{job_id_for_log}] No texts provided to get_embeddings_from_server.")
+        logger.warning(f"[{job_id_for_log}] No texts provided to get_embeddings_with_jina_api.")
         return []
 
-    logger.info(f"[{job_id_for_log}] Requesting embeddings for {len(texts)} texts from {EMBEDDING_SERVER_URL}.")
+    logger.info(f"[{job_id_for_log}] Requesting Jina API embeddings for {len(texts)} texts using model '{JINA_API_EMBEDDING_MODEL_NAME}' at '{JINA_API_EMBEDDING_URL}'.")
+    
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {JINA_API_KEY}",
+    }
+    payload = {
+        "input": texts,
+        "model": JINA_API_EMBEDDING_MODEL_NAME,
+    }
+
     try:
-        response = requests.post(
-            f"{EMBEDDING_SERVER_URL.rstrip('/')}/embed",
-            json={"texts": texts},
-            timeout=EMBEDDING_REQUEST_TIMEOUT
-        )
+        response = requests.post(JINA_API_EMBEDDING_URL, headers=headers, json=payload, timeout=JINA_API_TIMEOUT)
         response.raise_for_status()  # Raises HTTPError for bad responses (4XX or 5XX)
+        
         response_data = response.json()
+        embedding_data = response_data.get("data")
+
+        if not embedding_data or not isinstance(embedding_data, list):
+            logger.error(f"[{job_id_for_log}] Invalid or missing 'data' in response from Jina API: {response_data}")
+            raise ValueError("Invalid embedding data format from Jina API.")
         
-        embeddings = response_data.get("embeddings")
-        if not embeddings or not isinstance(embeddings, list) or \
-           not all(isinstance(emb, list) for emb in embeddings):
-            logger.error(f"[{job_id_for_log}] Invalid or missing 'embeddings' in response from embedding server: {response_data}")
-            raise ValueError("Invalid embedding format from server.")
+        embeddings = [item.get("embedding") for item in embedding_data]
         
+        if not all(isinstance(emb, list) for emb in embeddings):
+            logger.error(f"[{job_id_for_log}] One or more embeddings in Jina API response are not lists: {embeddings}")
+            raise ValueError("Invalid embedding format within data from Jina API.")
+
         if len(embeddings) != len(texts):
             logger.error(f"[{job_id_for_log}] Mismatch in number of texts sent ({len(texts)}) and embeddings received ({len(embeddings)}).")
-            raise ValueError("Mismatch in text/embedding count from server.")
+            raise ValueError("Mismatch in text/embedding count from Jina API.")
 
-        logger.info(f"[{job_id_for_log}] Successfully received {len(embeddings)} embeddings from server.")
+        # Verify embedding dimension of the first embedding
+        if embeddings and embeddings[0] and len(embeddings[0]) != VECTOR_SIZE:
+            dim_received = len(embeddings[0])
+            logger.error(f"[{job_id_for_log}] Jina API returned embedding dimension {dim_received}, expected {VECTOR_SIZE} based on config. Model: '{JINA_API_EMBEDDING_MODEL_NAME}'.")
+            raise ValueError(f"Jina API embedding dimension mismatch. Expected {VECTOR_SIZE}, got {dim_received}. Check JINA_API_EMBEDDING_MODEL_NAME and VECTOR_SIZE alignment.")
+
+        logger.info(f"[{job_id_for_log}] Successfully received {len(embeddings)} embeddings from Jina API.")
         return embeddings
     except requests.exceptions.Timeout:
-        logger.error(f"[{job_id_for_log}] Timeout connecting to embedding server at {EMBEDDING_SERVER_URL}.")
-        raise TimeoutError(f"Embedding server request timed out for job {job_id_for_log}.")
+        logger.error(f"[{job_id_for_log}] Timeout connecting to Jina API at {JINA_API_EMBEDDING_URL}.")
+        raise TimeoutError(f"Jina API request timed out for job {job_id_for_log}.")
     except requests.exceptions.RequestException as e:
-        logger.error(f"[{job_id_for_log}] Error connecting to embedding server at {EMBEDDING_SERVER_URL}: {e}", exc_info=True)
+        logger.error(f"[{job_id_for_log}] Error connecting to Jina API at {JINA_API_EMBEDDING_URL}: {e}", exc_info=True)
         if e.response is not None:
-            logger.error(f"[{job_id_for_log}] Embedding server response content: {e.response.text}")
-        raise # Re-raise the original error to be handled by the caller
+            logger.error(f"[{job_id_for_log}] Jina API error response content: {e.response.text}")
+        raise # Re-raise the original error
+    except ValueError as ve: # Catch ValueErrors raised within this function
+        logger.error(f"[{job_id_for_log}] Data processing error with Jina API response: {ve}", exc_info=True)
+        raise
+
 
 def hierarchical_chunk_markdown(markdown_text: str, source_filename: str, job_id_for_log: str,
                                 min_words: int = MIN_CHUNK_SIZE_WORDS, max_words: int = MAX_CHUNK_SIZE_WORDS) -> List[Dict]:
@@ -523,28 +589,23 @@ def hierarchical_chunk_markdown(markdown_text: str, source_filename: str, job_id
     return final_chunks
 
 def embed_chunks(chunks_data: List[Dict], job_id_for_log: str) -> List[List[float]]:
-    # global model_st # Removed
-    logger.info(f"[{job_id_for_log}] Embedding {len(chunks_data)} chunks via external server.")
-    # if not model_st: # Removed
-    #     logger.error(f"[{job_id_for_log}] SentenceTransformer model not initialized.") # Removed
-    #     raise ValueError("SentenceTransformer model not available for embedding.") # Removed
+    logger.info(f"[{job_id_for_log}] Embedding {len(chunks_data)} chunks via Jina API.")
     
     texts_to_embed = [chunk['text'] for chunk in chunks_data]
     if not texts_to_embed: 
         logger.warning(f"[{job_id_for_log}] No texts to embed in embed_chunks.")
         return []
     
-    # Clean texts before sending to embedding server
     cleaned_texts_to_embed = [clean_text_for_embedding(text, job_id_for_log) for text in texts_to_embed]
 
     try:
-        embeddings = get_embeddings_from_server(cleaned_texts_to_embed, job_id_for_log)
-    except (ValueError, requests.exceptions.RequestException, TimeoutError) as e:
-        logger.error(f"[{job_id_for_log}] Failed to get embeddings from server: {e}", exc_info=True)
-        raise # Re-raise to be handled by the caller (e.g., process_document_and_generate_first_question)
+        embeddings = get_embeddings_with_jina_api(cleaned_texts_to_embed, job_id_for_log)
+    except (ValueError, requests.exceptions.RequestException, TimeoutError, RuntimeError) as e:
+        logger.error(f"[{job_id_for_log}] Failed to get embeddings from Jina API: {e}", exc_info=True)
+        raise # Re-raise to be handled by the caller
     
-    logger.info(f"[{job_id_for_log}] Finished embedding {len(chunks_data)} chunks via external server.")
-    return embeddings # Already a list of lists
+    logger.info(f"[{job_id_for_log}] Finished embedding {len(chunks_data)} chunks via Jina API.")
+    return embeddings
 
 def upsert_to_qdrant(job_id_for_log: str, collection_name: str, embeddings: List[List[float]],
                      chunks_data: List[Dict], batch_size: int = 100) -> int:
@@ -575,6 +636,8 @@ def upsert_to_qdrant(job_id_for_log: str, collection_name: str, embeddings: List
             logger.debug(f"[{job_id_for_log}] Upserted batch of {len(batch)} points to Qdrant.")
         except Exception as e:
             logger.error(f"[{job_id_for_log}] Error upserting batch to Qdrant: {e}", exc_info=True)
+            if "vector size mismatch" in str(e).lower() or "params.vectors.size" in str(e).lower():
+                logger.critical(f"[{job_id_for_log}] QDRANT VECTOR SIZE MISMATCH! Collection expected different size than {VECTOR_SIZE}. This might require manual Qdrant collection deletion/recreation if server restart didn't fix it.")
             raise
     logger.info(f"[{job_id_for_log}] Successfully upserted {upserted_count} points to Qdrant collection '{collection_name}'.")
     return upserted_count
@@ -657,33 +720,30 @@ def parse_questions_from_llm_response(job_id_for_log: str, question_block: str, 
     return final_questions
 
 def evaluate_question_qsts(job_id_for_log: str, question: str, context: str) -> float:
-    # global model_st # Removed
     logger.info(f"[{job_id_for_log}] Evaluating QSTS for question: {question[:100]}")
-    # if not model_st: logger.error(f"[{job_id_for_log}] SentenceTransformer model not initialized for QSTS."); return 0.0 # Removed
     if not question or not context: logger.warning(f"[{job_id_for_log}] Empty question or context for QSTS."); return 0.0
     
     try:
         cleaned_question = clean_text_for_embedding(question, job_id_for_log)
         cleaned_context = clean_text_for_embedding(context, job_id_for_log)
         
-        embeddings_list = get_embeddings_from_server([cleaned_question, cleaned_context], job_id_for_log)
+        embeddings_list_of_lists = get_embeddings_with_jina_api([cleaned_question, cleaned_context], job_id_for_log)
         
-        if len(embeddings_list) != 2:
-            logger.error(f"[{job_id_for_log}] QSTS: Expected 2 embeddings, got {len(embeddings_list)}.")
+        if len(embeddings_list_of_lists) != 2:
+            logger.error(f"[{job_id_for_log}] QSTS: Expected 2 embeddings from Jina API, got {len(embeddings_list_of_lists)}.")
             return 0.0
 
-        q_embed_list = embeddings_list[0]
-        c_embed_list = embeddings_list[1]
+        q_embed_list = embeddings_list_of_lists[0]
+        c_embed_list = embeddings_list_of_lists[1]
 
-        # Convert lists to PyTorch tensors for sbert_util.pytorch_cos_sim
-        q_embed_tensor = torch.tensor(q_embed_list, dtype=torch.float32).unsqueeze(0) # Add batch dim
-        c_embed_tensor = torch.tensor(c_embed_list, dtype=torch.float32).unsqueeze(0) # Add batch dim
+        q_embed_tensor = torch.tensor(q_embed_list, dtype=torch.float32).unsqueeze(0) 
+        c_embed_tensor = torch.tensor(c_embed_list, dtype=torch.float32).unsqueeze(0) 
         
         score = sbert_util.pytorch_cos_sim(q_embed_tensor, c_embed_tensor).item()
         logger.info(f"[{job_id_for_log}] QSTS score: {score:.4f}")
         return score
-    except (ValueError, requests.exceptions.RequestException, TimeoutError) as e:
-        logger.error(f"[{job_id_for_log}] QSTS: Failed to get embeddings from server: {e}", exc_info=True)
+    except (ValueError, requests.exceptions.RequestException, TimeoutError, RuntimeError) as e_embed:
+        logger.error(f"[{job_id_for_log}] QSTS: Failed to get embeddings via Jina API: {e_embed}", exc_info=True)
         return 0.0
     except Exception as e: 
         logger.error(f"[{job_id_for_log}] Error during QSTS calculation: {e}", exc_info=True)
@@ -729,19 +789,17 @@ def evaluate_question_answerability_llm(job_id_for_log: str, question: str, acad
                                      course_name: str, taxonomy_level: str, marks_for_question: str,
                                      document_ids_filter: List[str], session_id_filter: str
                                      ) -> Tuple[bool, str, List[Dict]]:
-    # global model_st # Removed
     logger.info(f"[{job_id_for_log}] Performing enhanced answerability LLM evaluation for: {question[:100]}")
-    # if not model_st: return False, "Error: Embedding model (local) not available.", [] # Removed
     ans_context_metadata = []
     try:
         cleaned_question_for_embedding = clean_text_for_embedding(question, job_id_for_log)
-        embedding_response = get_embeddings_from_server([cleaned_question_for_embedding], job_id_for_log)
+        embedding_response_list_of_lists = get_embeddings_with_jina_api([cleaned_question_for_embedding], job_id_for_log)
         
-        if not embedding_response or len(embedding_response) != 1:
-            logger.error(f"[{job_id_for_log}] Answerability: Failed to get valid embedding for the question.")
-            return False, "Error: Could not embed question for answerability check.", []
+        if not embedding_response_list_of_lists or len(embedding_response_list_of_lists) != 1:
+            logger.error(f"[{job_id_for_log}] Answerability: Failed to get valid embedding for the question via Jina API.")
+            return False, "Error: Could not embed question for answerability check (Jina API).", []
 
-        question_embedding_vector = embedding_response[0]
+        question_embedding_vector = embedding_response_list_of_lists[0]
         
         answer_search_results = search_qdrant(
             job_id_for_log=job_id_for_log, collection_name=QDRANT_COLLECTION_NAME,
@@ -778,10 +836,11 @@ def evaluate_question_answerability_llm(job_id_for_log: str, question: str, acad
                 return False, "LLM response for answerability not in expected JSON format.", ans_context_metadata
         except json.JSONDecodeError:
             return False, "Failed to parse LLM's JSON response for answerability.", ans_context_metadata
-    except (ValueError, requests.exceptions.RequestException, TimeoutError) as e_embed:
-        logger.error(f"[{job_id_for_log}] Answerability: Failed to get embeddings for question: {e_embed}", exc_info=True)
-        return False, f"Error getting question embedding for answerability: {str(e_embed)}", []
+    except (ValueError, requests.exceptions.RequestException, TimeoutError, RuntimeError) as e_embed:
+        logger.error(f"[{job_id_for_log}] Answerability: Failed to get Jina API embeddings for question: {e_embed}", exc_info=True)
+        return False, f"Error getting question embedding for answerability (Jina API): {str(e_embed)}", []
     except Exception as e:
+        logger.error(f"[{job_id_for_log}] Unexpected error in answerability_eval: {e}", exc_info=True)
         return False, f"Unexpected error in answerability_eval: {str(e)}", ans_context_metadata
 
 # --- Datalab, Moondream, File Processing ---
@@ -895,14 +954,13 @@ def process_document_and_generate_first_question(
     job_id: str, pdf_path_on_disk: Path, original_filename: str,
     params: QuestionGenerationRequest, job_specific_temp_dir: Path
 ):
-    # global model_st # Removed
     global job_status_storage
     job_status_storage[job_id]["status"] = "processing_setup"
     job_status_storage[job_id]["message"] = "Preparing document..."
     
     current_job_data_dir = JOB_DATA_DIR / job_id
     current_job_data_dir.mkdir(parents=True, exist_ok=True)
-    job_images_dir = job_specific_temp_dir / "images" # This dir is under TEMP_UPLOAD_DIR/job_id
+    job_images_dir = job_specific_temp_dir / "images"
     final_md_path = current_job_data_dir / f"{job_id}_{Path(original_filename).stem}_processed.md"
 
     try:
@@ -924,9 +982,9 @@ def process_document_and_generate_first_question(
             "processed_markdown_path_relative": str(final_md_path.relative_to(PERSISTENT_DATA_BASE_DIR)),
             "processed_markdown_filename_on_server": final_md_path.name
         })
-        if job_images_dir.exists(): shutil.rmtree(job_images_dir) # Clean up temp images from job_specific_temp_dir
+        if job_images_dir.exists(): shutil.rmtree(job_images_dir) 
 
-        job_status_storage[job_id]["message"] = "Chunking, embedding, upserting (Qdrant)..."
+        job_status_storage[job_id]["message"] = "Chunking, embedding (Jina API), upserting (Qdrant)..."
         doc_id_qdrant = f"doc_{job_id}_{Path(original_filename).stem.replace('.', '_')}"
         job_status_storage[job_id]["document_id_for_qdrant"] = doc_id_qdrant
         chunks = hierarchical_chunk_markdown(processed_md, original_filename, job_id)
@@ -935,9 +993,8 @@ def process_document_and_generate_first_question(
             chunk_data.setdefault('metadata', {})['document_id'] = doc_id_qdrant
             chunk_data['metadata']['session_id'] = job_id
         
-        # Embedding is now via external server, called by embed_chunks
-        embeddings = embed_chunks(chunks, job_id) # This now calls get_embeddings_from_server
-        if not embeddings: raise ValueError("Embedding failed or returned no embeddings.")
+        embeddings = embed_chunks(chunks, job_id) # Uses Jina API
+        if not embeddings: raise ValueError("Embedding failed or returned no embeddings (Jina API).")
         if upsert_to_qdrant(job_id, QDRANT_COLLECTION_NAME, embeddings, chunks) == 0:
             raise ValueError("No points upserted to Qdrant.")
 
@@ -951,10 +1008,10 @@ def process_document_and_generate_first_question(
             raise ValueError(f"Hypothetical text generation failed: {hypo_text}")
         
         cleaned_hypo_text = clean_text_for_embedding(hypo_text, job_id)
-        hypo_embedding_response = get_embeddings_from_server([cleaned_hypo_text], job_id)
-        if not hypo_embedding_response or len(hypo_embedding_response) != 1:
-            raise ValueError("Failed to get valid embedding for hypothetical text.")
-        query_embed = hypo_embedding_response[0]
+        hypo_embedding_response_list_of_lists = get_embeddings_with_jina_api([cleaned_hypo_text], job_id)
+        if not hypo_embedding_response_list_of_lists or len(hypo_embedding_response_list_of_lists) != 1:
+            raise ValueError("Failed to get valid Jina API embedding for hypothetical text.")
+        query_embed = hypo_embedding_response_list_of_lists[0]
 
 
         job_status_storage[job_id]["message"] = "Retrieving generation context (Qdrant)..."
@@ -986,15 +1043,13 @@ def process_document_and_generate_first_question(
             "max_regeneration_attempts": MAX_INTERACTIVE_REGENERATION_ATTEMPTS,
         })
 
-    except (ValueError, FileNotFoundError, requests.exceptions.RequestException, TimeoutError) as e: # Added specific error types
+    except (ValueError, FileNotFoundError, requests.exceptions.RequestException, TimeoutError, RuntimeError) as e: # Added RuntimeError for Jina API
         logger.error(f"[{job_id}] Critical error during initial processing/first question: {e}", exc_info=True)
         job_status_storage[job_id].update({
             "status": "error", "message": f"Job setup failed: {str(e)}", "error_details": str(e)
         })
-        # job_specific_temp_dir is under TEMP_UPLOAD_DIR/job_id, it will be cleaned up if finalize is not called or error occurs at higher level.
-        # If pdf_path_on_disk (which is inside job_specific_temp_dir) caused the issue, this dir should be cleaned.
         if job_specific_temp_dir.exists(): shutil.rmtree(job_specific_temp_dir, ignore_errors=True)
-    except Exception as e: # Catch-all for other unexpected errors
+    except Exception as e: 
         logger.error(f"[{job_id}] Unexpected critical error during initial processing/first question: {e}", exc_info=True)
         job_status_storage[job_id].update({
             "status": "error", "message": f"Unexpected job setup error: {str(e)}", "error_details": str(e)
@@ -1014,7 +1069,7 @@ def generate_and_evaluate_question_once(
         "taxonomy_level": params.taxonomy_level, "taxonomy": params.taxonomy_level,
         "marks_for_question": params.marks_for_question, "topics_list": params.topics_list,
         "bloom_guidance": get_bloom_guidance(params.taxonomy_level, job_id),
-        "blooms_taxonomy_descriptions": get_bloom_guidance(params.taxonomy_level, job_id), # Duplicate key, consider aliasing if needed
+        "blooms_taxonomy_descriptions": get_bloom_guidance(params.taxonomy_level, job_id),
         "retrieved_context": gen_ctx_text, "feedback_on_previous_attempt": user_feedback, "num_questions": "1"
     }
     prompt_path = job_specific_temp_dir / f"qgen_prompt_job_{job_id}_attempt_{attempt_num}.txt"
@@ -1040,18 +1095,16 @@ def generate_and_evaluate_question_once(
                 updated_hist, [])
     
     curr_q_text = parsed_q_list[0]
-    # Note: gen_ctx_text here is the context used for *generation*. QSTS should ideally use this.
-    qsts = evaluate_question_qsts(job_id, curr_q_text, gen_ctx_text)
+    qsts = evaluate_question_qsts(job_id, curr_q_text, gen_ctx_text) # Uses Jina API
     qual_evals = evaluate_question_qualitative_llm(
         job_id, curr_q_text, gen_ctx_text, params.academic_level, params.major,
         params.course_name, params.taxonomy_level, params.marks_for_question
     )
-    # Answerability uses its own retrieved context.
-    is_ans, ans_reason, ans_ctx_meta = evaluate_question_answerability_llm(
+    is_ans, ans_reason, ans_ctx_meta = evaluate_question_answerability_llm( # Uses Jina API
         job_id, curr_q_text, params.academic_level, params.major, params.course_name,
         params.taxonomy_level, params.marks_for_question, doc_ids_filter, session_id_filter
     )
-    if prompt_path.exists(): prompt_path.unlink(missing_ok=True) # Clean up prompt file
+    if prompt_path.exists(): prompt_path.unlink(missing_ok=True) 
 
     eval_metrics = {
         "qsts_score": qsts, "qualitative_metrics": qual_evals,
@@ -1073,16 +1126,15 @@ async def start_question_generation_endpoint(
     course_name: str = Form("Data Structures and Algorithms"), taxonomy_level: str = Form("Evaluate"),
     marks_for_question: str = Form("10"), topics_list: str = Form("Breadth First Search, Shortest path"),
     retrieval_limit_generation: int = Form(15), similarity_threshold_generation: float = Form(0.4),
-    generate_diagrams: bool = Form(False) # This param seems unused in current logic
+    generate_diagrams: bool = Form(False)
 ):
     job_id = str(uuid.uuid4())
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Invalid file. Only PDF allowed.")
 
-    job_temp_dir = TEMP_UPLOAD_DIR / job_id # This is job_specific_temp_dir
+    job_temp_dir = TEMP_UPLOAD_DIR / job_id 
     job_temp_dir.mkdir(parents=True, exist_ok=True)
     
-    # Sanitize filename
     original_file_name_path = Path(file.filename)
     safe_stem = "".join(c for c in original_file_name_path.stem if c.isalnum() or c in ('-', '_')) or "upload"
     safe_suffix = original_file_name_path.suffix if original_file_name_path.suffix.lower() == ".pdf" else ".pdf"
@@ -1103,8 +1155,6 @@ async def start_question_generation_endpoint(
         raise HTTPException(status_code=500, detail=f"Could not save file: {str(e)}") from e
     finally: await file.close()
 
-    # Collect form parameters into the Pydantic model
-    # Using `locals()` can be error-prone if other local vars exist. Explicitly pass:
     req_params_dict = {
         "academic_level": academic_level, "major": major, "course_name": course_name,
         "taxonomy_level": taxonomy_level, "marks_for_question": marks_for_question,
@@ -1114,14 +1164,14 @@ async def start_question_generation_endpoint(
     }
     try:
         req_params = QuestionGenerationRequest(**req_params_dict)
-    except Exception as pydantic_error: # Catch Pydantic validation errors
+    except Exception as pydantic_error: 
         if job_temp_dir.exists(): shutil.rmtree(job_temp_dir, ignore_errors=True)
         logger.error(f"[{job_id}] Invalid parameters for question generation: {pydantic_error}", exc_info=True)
         raise HTTPException(status_code=422, detail=f"Invalid parameters: {pydantic_error}")
 
     job_status_storage[job_id] = {
         "status": "queued", "message": "Job queued for initial processing.",
-        "job_params": req_params.model_dump(), "original_filename": file.filename, # Use original filename for display
+        "job_params": req_params.model_dump(), "original_filename": file.filename,
         "regeneration_attempts_made": 0, "max_regeneration_attempts": MAX_INTERACTIVE_REGENERATION_ATTEMPTS,
     }
     background_tasks.add_task(process_document_and_generate_first_question,
@@ -1135,7 +1185,7 @@ def _get_job_status_response_dict(job_id: str, job_data: Dict) -> Dict:
         try:
             response_dict['job_params'] = QuestionGenerationRequest(**job_params_data)
         except Exception: response_dict['job_params'] = None
-    elif not isinstance(job_params_data, QuestionGenerationRequest): # Ensure it's already not a model instance
+    elif not isinstance(job_params_data, QuestionGenerationRequest): 
         response_dict['job_params'] = None
     return response_dict
 
@@ -1148,26 +1198,25 @@ async def regenerate_question_endpoint(job_id: str, regen_request: RegenerationR
     attempts = job_data.get("regeneration_attempts_made", 0)
     max_attempts = job_data.get("max_regeneration_attempts", MAX_INTERACTIVE_REGENERATION_ATTEMPTS)
 
-    if status not in ["awaiting_feedback", "max_attempts_reached"]: # Allow regen even if max_attempts_reached if client insists, but it won't change outcome
+    if status not in ["awaiting_feedback", "max_attempts_reached"]:
         raise HTTPException(status_code=400, detail=f"Cannot regenerate from status: {status}")
     
     if attempts >= max_attempts:
-        job_data["status"] = "max_attempts_reached" # Ensure status reflects this
+        job_data["status"] = "max_attempts_reached" 
         job_data["message"] = "Max regeneration attempts already reached. Further regeneration will not change outcome unless limits are adjusted."
         return JobStatusResponse(job_id=job_id, **_get_job_status_response_dict(job_id, job_data))
 
     job_data["status"], job_data["message"] = "regenerating_question", "Regenerating question..."
-    job_temp_dir = TEMP_UPLOAD_DIR / job_id; job_temp_dir.mkdir(parents=True, exist_ok=True) # Ensure it exists
+    job_temp_dir = TEMP_UPLOAD_DIR / job_id; job_temp_dir.mkdir(parents=True, exist_ok=True) 
 
     try:
-        params = QuestionGenerationRequest(**job_data["job_params"]) # job_params should be a dict here
+        params = QuestionGenerationRequest(**job_data["job_params"]) 
         
-        # Required data for generate_and_evaluate_question_once
         gen_ctx_text = job_data.get("generation_context_text_for_llm")
         convo_hist = job_data.get("conversation_history_for_qgen", [])
         doc_id_qdrant = job_data.get("document_id_for_qdrant")
 
-        if not all([gen_ctx_text, doc_id_qdrant is not None]): # convo_hist can be empty initially
+        if not all([gen_ctx_text, doc_id_qdrant is not None]): 
             missing_data_msg = "Missing essential data for regeneration (context, doc_id)."
             logger.error(f"[{job_id}] {missing_data_msg}")
             job_data.update({"status": "error", "message": missing_data_msg, "error_details": missing_data_msg})
@@ -1181,7 +1230,7 @@ async def regenerate_question_endpoint(job_id: str, regen_request: RegenerationR
         job_data.update({
             "current_question": q_text, "current_evaluations": q_evals,
             "conversation_history_for_qgen": updated_convo_hist,
-            "answerability_context_snippets_metadata": ans_meta, # Update this as well
+            "answerability_context_snippets_metadata": ans_meta, 
             "regeneration_attempts_made": attempts + 1, "error_details": None
         })
         if job_data["regeneration_attempts_made"] >= max_attempts:
@@ -1190,17 +1239,15 @@ async def regenerate_question_endpoint(job_id: str, regen_request: RegenerationR
             job_data["status"], job_data["message"] = "awaiting_feedback", "Question regenerated successfully. Please review."
     except Exception as e:
         logger.error(f"[{job_id}] Error during regeneration process: {e}", exc_info=True)
-        job_data.update({ # Revert to awaiting_feedback so user can see the error and potentially try again or finalize
+        job_data.update({ 
             "status": "awaiting_feedback", 
             "message": f"Error during regeneration: {str(e)}",
             "error_details": str(e)
         })
-        # Add error details to current_evaluations if possible
         if isinstance(job_data.get("current_evaluations"), dict):
             job_data["current_evaluations"]["error_message_regeneration"] = str(e)
         else:
             job_data["current_evaluations"] = {"error_message_regeneration": str(e)}
-        # Do not raise HTTPException here, return the JobStatusResponse with error info
         
     return JobStatusResponse(job_id=job_id, **_get_job_status_response_dict(job_id, job_data))
 
@@ -1217,30 +1264,25 @@ async def finalize_question_endpoint(job_id: str, finalize_request: FinalizeRequ
     if not current_q or current_q.startswith("Error:"):
          raise HTTPException(status_code=400, detail="Cannot finalize with an errored or missing question. Current question is invalid.")
     
-    # The client sends the question it thinks is final. We use the server's current question for record.
-    # Log if there's a mismatch, but proceed with server's version.
     if finalize_request.final_question != current_q:
         logger.warning(f"[{job_id}] Finalizing question mismatch. Client sent: '{finalize_request.final_question[:50]}...', Server has: '{current_q[:50]}...'. Using server's current question.")
 
     job_data["status"], job_data["message"] = "finalizing", "Finalizing job and saving results..."
     
-    # Prepare the final payload from job_data
-    # Ensure job_params is correctly retrieved (it's a dict in job_status_storage)
     job_params_dict = job_data.get("job_params", {})
     try:
-        # Attempt to cast to Pydantic model for structure, though it's mainly for consistent output
         job_params_model = QuestionGenerationRequest(**job_params_dict) if job_params_dict else None
     except Exception:
-        job_params_model = None # Fallback if casting fails, use raw dict
+        job_params_model = None 
 
     final_payload = {
         "job_id": job_id, 
         "original_filename": job_data.get("original_filename"),
-        "parameters": job_params_model.model_dump() if job_params_model else job_params_dict, # Store as dict
+        "parameters": job_params_model.model_dump() if job_params_model else job_params_dict, 
         "generated_question": current_q,
         "evaluation_metrics": job_data.get("current_evaluations"),
-        "generation_context_snippets_metadata": job_data.get("generation_context_snippets_metadata"), # Context used for original generation
-        "answerability_context_snippets_metadata": job_data.get("answerability_context_snippets_metadata"), # Context used for last answerability check
+        "generation_context_snippets_metadata": job_data.get("generation_context_snippets_metadata"), 
+        "answerability_context_snippets_metadata": job_data.get("answerability_context_snippets_metadata"), 
         "processed_markdown_path_relative": job_data.get("processed_markdown_path_relative"),
         "processed_markdown_filename_on_server": job_data.get("processed_markdown_filename_on_server"),
         "total_regeneration_attempts_made": job_data.get("regeneration_attempts_made"),
@@ -1248,20 +1290,17 @@ async def finalize_question_endpoint(job_id: str, finalize_request: FinalizeRequ
     }
     
     result_file_path = JOB_DATA_DIR / job_id / f"{job_id}_final_interactive_result.json"
-    result_file_path.parent.mkdir(parents=True, exist_ok=True) # Ensure parent directory exists
+    result_file_path.parent.mkdir(parents=True, exist_ok=True) 
     
     try: 
         result_file_path.write_text(json.dumps(final_payload, indent=2, cls=PathEncoder), encoding="utf-8")
         logger.info(f"[{job_id}] Final result saved to {result_file_path}")
     except Exception as e: 
         logger.error(f"[{job_id}] Failed to save final result JSON to {result_file_path}: {e}", exc_info=True)
-        # Update job status to reflect save error but still proceed to cleanup
         job_data.update({"status": "error_saving_final", "message": f"Job finalized, but error saving result: {str(e)}", "final_result": final_payload})
-        # Don't raise HTTPException here, client should still get a response. The job is "complete" in spirit.
 
     job_data.update({"final_result": final_payload, "status": "completed", "message": "Job finalized successfully by user."})
     
-    # Cleanup temporary upload directory for this job
     job_temp_dir = TEMP_UPLOAD_DIR / job_id
     if job_temp_dir.exists(): 
         shutil.rmtree(job_temp_dir, ignore_errors=True)
@@ -1278,26 +1317,51 @@ async def get_job_status_endpoint(job_id: str):
 
 @app.get("/health")
 async def health_check():
-    # Optionally, check connectivity to embedding server
-    embedding_server_status = "unknown"
-    if EMBEDDING_SERVER_URL:
+    jina_api_status = "unknown"
+    if JINA_API_KEY and JINA_API_EMBEDDING_URL:
         try:
-            response = requests.get(f"{EMBEDDING_SERVER_URL.rstrip('/')}/health", timeout=5)
+            test_texts = ["health check"]
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {JINA_API_KEY}",
+            }
+            payload = {
+                "input": test_texts,
+                "model": JINA_API_EMBEDDING_MODEL_NAME,
+            }
+            response = requests.post(JINA_API_EMBEDDING_URL, headers=headers, json=payload, timeout=10) # Short timeout for health check
             if response.status_code == 200:
-                embedding_server_status = "ok"
+                response_data = response.json()
+                if response_data.get("data") and response_data["data"][0].get("embedding"):
+                    jina_api_status = "ok"
+                else:
+                    jina_api_status = "error_malformed_response"
             else:
-                embedding_server_status = f"error_status_{response.status_code}"
+                jina_api_status = f"error_status_{response.status_code}"
+        except requests.exceptions.Timeout:
+            jina_api_status = "error_timeout"
         except requests.exceptions.RequestException:
-            embedding_server_status = "unreachable"
+            jina_api_status = "error_unreachable_or_request_failed"
+        except Exception as e:
+            logger.warning(f"Health check: Jina API test failed unexpectedly: {e}")
+            jina_api_status = "error_exception"
+    else:
+        jina_api_status = "not_configured (API Key or URL missing)"
     
     return {
         "status": "ok", 
         "message": "Interactive QG API is running.",
-        "embedding_server_status": embedding_server_status,
-        "qdrant_url_configured": bool(QDRANT_URL) # Basic check
+        "jina_embedding_api_status": jina_api_status,
+        "jina_embedding_model_configured": JINA_API_EMBEDDING_MODEL_NAME,
+        "expected_vector_size": VECTOR_SIZE,
+        "qdrant_url_configured": bool(QDRANT_URL)
     }
 
 if __name__ == "__main__":
     import uvicorn
     logger.info("Starting Interactive Question Generation API with Uvicorn...")
+    logger.info(f"CONFIG: Jina API URL='{JINA_API_EMBEDDING_URL}', Jina Model='{JINA_API_EMBEDDING_MODEL_NAME}', Vector Size='{VECTOR_SIZE}'")
+    # Note for user: Ensure JINA_API_KEY, JINA_API_EMBEDDING_URL (optional), JINA_API_EMBEDDING_MODEL_NAME (optional)
+    # are set in your .env file. VECTOR_SIZE must match the output of JINA_API_EMBEDDING_MODEL_NAME.
+    # Pip install: requests torch sentence-transformers Pillow nltk python-dotenv fastapi uvicorn[standard] qdrant-client moondream
     uvicorn.run(app, host="0.0.0.0", port=8002)
