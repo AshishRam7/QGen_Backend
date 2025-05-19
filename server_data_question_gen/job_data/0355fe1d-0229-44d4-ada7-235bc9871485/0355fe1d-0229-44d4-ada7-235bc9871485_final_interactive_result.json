@@ -1,0 +1,218 @@
+{
+  "job_id": "0355fe1d-0229-44d4-ada7-235bc9871485",
+  "original_filename": "DP__notes.pdf",
+  "parameters": {
+    "academic_level": "Postgraduate",
+    "major": "Computer Science Engineering",
+    "course_name": "Data Structures and Algorithms",
+    "taxonomy_level": "Create",
+    "marks_for_question": "15",
+    "topics_list": "Breadth First Search, Shortest path",
+    "retrieval_limit_generation": 15,
+    "similarity_threshold_generation": 0.5,
+    "generate_diagrams": false
+  },
+  "generated_question": "Imagine a network of autonomous vehicles where each vehicle represents a node in a graph, and the distance between vehicles represents weighted edges.  Design a system using Breadth-First Search and a shortest path algorithm to dynamically reroute vehicles around unexpected obstacles (represented as temporarily unavailable edges).  Your design should consider factors such as real-time updates, minimizing overall travel time, and handling potential conflicts between vehicle routes.  Detail the data structures you would use and justify your algorithmic choices.",
+  "evaluation_metrics": {
+    "qsts_score": 0.8552308082580566,
+    "qualitative_metrics": {
+      "Understandable": true,
+      "TopicRelated": true,
+      "Grammatical": true,
+      "Clear": true,
+      "Central": true,
+      "reasoning": "No reasoning provided by LLM."
+    },
+    "llm_answerability": {
+      "is_answerable": false,
+      "reasoning": "The provided context snippets focus on illustrating shortest path algorithms and graph representations through figures and examples.  While they mention concepts like shortest path trees and directed graphs, they lack the depth and breadth required for a postgraduate Computer Science Engineering student to design a complete system for dynamically rerouting autonomous vehicles. The question demands a sophisticated understanding of real-time updates, conflict resolution, and the integration of BFS and a shortest path algorithm, which are not sufficiently addressed in the given snippets.  The snippets are insufficient to support the 'Create' level of Bloom's Taxonomy, which requires generating a novel solution based on a deep understanding of the concepts, not just recognizing or applying them from simple examples."
+    },
+    "generation_status_message": "Question evaluation for attempt 3 complete."
+  },
+  "generation_context_snippets_metadata": [
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+        "**Various types of shortest path problem are-**",
+        "Figure 4",
+        "**Dijkstra's Algorithm**"
+      ],
+      "final_chunk_index": 33
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Next In-Directed path from \" S\" to \"e\"**",
+        "Figure 10",
+        "Figure 11"
+      ],
+      "final_chunk_index": 44
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+        "**Various types of shortest path problem are-**",
+        "Figure 5"
+      ],
+      "final_chunk_index": 34
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Dynamic Programming**",
+        "**Overlapping Sub-Problems**",
+        "**Optimal Sub-Structure**"
+      ],
+      "final_chunk_index": 2
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+        "**Various types of shortest path problem are-**",
+        "Figure 4",
+        "**Single-Destination Shortest Path Problem-**"
+      ],
+      "final_chunk_index": 31
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+        "**Various types of shortest path problem are-**",
+        "Figure 4",
+        "**Single-Source Shortest Path Problem-**"
+      ],
+      "final_chunk_index": 30
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Next In-Directed path from \" S\" to \"e\"**",
+        "Figure 10"
+      ],
+      "final_chunk_index": 43
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**0/1 Knapsack Problem: Dynamic Programming Approach: Knapsack Problem:**",
+        "Solution"
+      ],
+      "final_chunk_index": 21
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+        "**Shortest Path Problem-**"
+      ],
+      "final_chunk_index": 26
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+        "**Various types of shortest path problem are-**",
+        "Figure 4",
+        "**All Pairs Shortest Path Problem-**"
+      ],
+      "final_chunk_index": 32
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+        "**Shortest Path Problem-**",
+        "**Shortest Path Algorithms-**"
+      ],
+      "final_chunk_index": 27
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Dynamic Programming**",
+        "**Difference between Dynamic programming and Divide and Conquer Technique**"
+      ],
+      "final_chunk_index": 5
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**To better understand the concept of backtracking we use an example**",
+        "**Example.**",
+        "Figure 14"
+      ],
+      "final_chunk_index": 53
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**0/1 Knapsack Problem: Dynamic Programming Approach: Knapsack Problem:**",
+        "Example",
+        "Figure 2",
+        "**S = \u03a6**"
+      ],
+      "final_chunk_index": 24
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Next In-Directed path from \"S\" to \"b\"**",
+        "Figure 7"
+      ],
+      "final_chunk_index": 37
+    }
+  ],
+  "answerability_context_snippets_metadata": [
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+        "**Various types of shortest path problem are-**",
+        "Figure 5"
+      ],
+      "final_chunk_index": 34
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Next In-Directed path from \" S\" to \"e\"**",
+        "Figure 10"
+      ],
+      "final_chunk_index": 43
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Next In-Directed path from \" S\" to \"e\"**",
+        "Figure 10",
+        "Figure 11"
+      ],
+      "final_chunk_index": 44
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Next In-Directed path from \"S\" to \"b\"**",
+        "Figure 7"
+      ],
+      "final_chunk_index": 37
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Dynamic Programming**",
+        "**Overlapping Sub-Problems**",
+        "**Optimal Sub-Structure**"
+      ],
+      "final_chunk_index": 2
+    }
+  ],
+  "processed_markdown_path_relative": "job_data\\0355fe1d-0229-44d4-ada7-235bc9871485\\0355fe1d-0229-44d4-ada7-235bc9871485_DP__notes_processed.md",
+  "processed_markdown_filename_on_server": "0355fe1d-0229-44d4-ada7-235bc9871485_DP__notes_processed.md",
+  "total_regeneration_attempts_made": 3,
+  "finalized_at": "2025-05-19T06:45:44Z"
+}

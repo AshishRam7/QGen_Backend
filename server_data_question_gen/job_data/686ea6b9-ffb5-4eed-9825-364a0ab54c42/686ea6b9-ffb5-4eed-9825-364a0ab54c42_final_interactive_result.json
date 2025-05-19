@@ -1,0 +1,219 @@
+{
+  "job_id": "686ea6b9-ffb5-4eed-9825-364a0ab54c42",
+  "original_filename": "DP__notes.pdf",
+  "parameters": {
+    "academic_level": "Undergraduate",
+    "major": "Computer Science",
+    "course_name": "Data Structures and Algorithms",
+    "taxonomy_level": "Evaluate",
+    "marks_for_question": "10",
+    "topics_list": "Breadth First Search, Shortest path",
+    "retrieval_limit_generation": 15,
+    "similarity_threshold_generation": 0.4,
+    "generate_diagrams": false
+  },
+  "generated_question": "A social networking site uses a graph data structure to represent its users and their connections.  Given that Breadth-First Search (BFS) is used to find the shortest path between users, justify the choice of BFS over Dijkstra's algorithm, considering factors such as the nature of the connections (unweighted edges) and the potential for large numbers of users.  Critically evaluate the efficiency and scalability of BFS in this context, supporting your arguments with specific considerations of time and space complexity.",
+  "evaluation_metrics": {
+    "qsts_score": 0.8504827618598938,
+    "qualitative_metrics": {
+      "Understandable": true,
+      "TopicRelated": true,
+      "Grammatical": true,
+      "Clear": true,
+      "Central": true,
+      "reasoning": "No reasoning provided by LLM."
+    },
+    "llm_answerability": {
+      "is_answerable": false,
+      "reasoning": "The provided snippets offer definitions of Dijkstra's algorithm and the shortest path problem, along with some graph illustrations. However, they lack crucial information for a CS undergraduate to justify the choice of BFS over Dijkstra's for unweighted graphs in a large social network.  The question demands a comparative analysis of time and space complexity of both algorithms in this specific context, which is not supported by the snippets.  While the student might recall some aspects of BFS and Dijkstra's, the snippets do not provide the necessary detail to construct a complete and accurate evaluation at the 'Evaluate' Bloom's Taxonomy level."
+    },
+    "generation_status_message": "Question evaluation for attempt 1 complete."
+  },
+  "generation_context_snippets_metadata": [
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Next In-Directed path from \" S\" to \"e\"**",
+        "Figure 10",
+        "Figure 11"
+      ],
+      "final_chunk_index": 44
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+        "**Various types of shortest path problem are-**",
+        "Figure 5"
+      ],
+      "final_chunk_index": 34
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+        "**Various types of shortest path problem are-**",
+        "Figure 4",
+        "**Dijkstra's Algorithm**"
+      ],
+      "final_chunk_index": 33
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Dynamic Programming**",
+        "**Overlapping Sub-Problems**",
+        "**Optimal Sub-Structure**"
+      ],
+      "final_chunk_index": 2
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**0/1 Knapsack Problem: Dynamic Programming Approach: Knapsack Problem:**",
+        "Solution"
+      ],
+      "final_chunk_index": 21
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Next In-Directed path from \" S\" to \"e\"**",
+        "Figure 10"
+      ],
+      "final_chunk_index": 43
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+        "**Various types of shortest path problem are-**",
+        "Figure 4",
+        "**Single-Destination Shortest Path Problem-**"
+      ],
+      "final_chunk_index": 31
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+        "**Shortest Path Problem-**"
+      ],
+      "final_chunk_index": 26
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Dynamic Programming**",
+        "**Longest Common Sequence (LCS)**",
+        "**Characteristics of Longest Common Sequence**"
+      ],
+      "final_chunk_index": 10
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**To better understand the concept of backtracking we use an example**",
+        "**Example.**",
+        "Figure 14"
+      ],
+      "final_chunk_index": 53
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+        "**Various types of shortest path problem are-**",
+        "Figure 4",
+        "**Single-Source Shortest Path Problem-**"
+      ],
+      "final_chunk_index": 30
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Next In-Directed path from \" S\" to \"e\"**"
+      ],
+      "final_chunk_index": 42
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+        "**Various types of shortest path problem are-**",
+        "Figure 4",
+        "**All Pairs Shortest Path Problem-**"
+      ],
+      "final_chunk_index": 32
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Dynamic Programming**",
+        "**Difference between Dynamic programming and Divide and Conquer Technique**",
+        "**Components of Dynamic programming**"
+      ],
+      "final_chunk_index": 7
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**0/1 Knapsack Problem: Dynamic Programming Approach: Knapsack Problem:**",
+        "Example",
+        "Figure 2",
+        "**S = \u03a6**"
+      ],
+      "final_chunk_index": 24
+    }
+  ],
+  "answerability_context_snippets_metadata": [
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+        "**Various types of shortest path problem are-**",
+        "Figure 5"
+      ],
+      "final_chunk_index": 34
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Next In-Directed path from \" S\" to \"e\"**",
+        "Figure 10",
+        "Figure 11"
+      ],
+      "final_chunk_index": 44
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+        "**Various types of shortest path problem are-**",
+        "Figure 4",
+        "**Dijkstra's Algorithm**"
+      ],
+      "final_chunk_index": 33
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Next In-Directed path from \" S\" to \"e\"**",
+        "Figure 10"
+      ],
+      "final_chunk_index": 43
+    },
+    {
+      "source_file": "DP__notes.pdf",
+      "header_trail": [
+        "**Shortest Path Problem | Shortest Path Algorithms | Examples**",
+        "**Shortest Path Problem-**"
+      ],
+      "final_chunk_index": 26
+    }
+  ],
+  "processed_markdown_path_relative": "job_data\\686ea6b9-ffb5-4eed-9825-364a0ab54c42\\686ea6b9-ffb5-4eed-9825-364a0ab54c42_DP__notes_processed.md",
+  "processed_markdown_filename_on_server": "686ea6b9-ffb5-4eed-9825-364a0ab54c42_DP__notes_processed.md",
+  "total_regeneration_attempts_made": 1,
+  "finalized_at": "2025-05-19T06:21:54Z"
+}
